@@ -40,6 +40,8 @@ Other clients can connect directly to the Model Proxy and Capability Proxy with 
 
 For an existing DSH deployment, keep your profile and point its MCP client or file adapter at the Capability Proxy. The [optional Codex native extension](../extensions/dsh-native-codex/README.md) adds search citations and image attachments directly to a DSH Responses provider. The same tools remain available over MCP, including for conversations using another provider.
 
+[DSH native extension development](../extensions/dsh-native/README.md) describes the shared release format and how to add a provider-specific plugin.
+
 ## Reuse an existing CLIProxyAPI
 
 Set `upstream` to the existing CLIProxyAPI URL ending in `/v1` and set `OH_MY_HARNESS_UPSTREAM_KEY_FILE` to a CLIProxyAPI client key file. Use HTTPS for remote connections or HTTP over loopback. `npm run init` creates the local capability key for an external upstream. Start the Capability Proxy with `npm start`. Supply the existing model client key separately when launching DSH. For a locally managed CLIProxyAPI config of your own, set `CLIPROXY_CONFIG`. [CLIProxyAPI v8 configuration](https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.51/config.example.yaml)

@@ -23,6 +23,9 @@
 !/test/
 !/test/*.test.mjs
 !/extensions/
+!/extensions/dsh-native/
+!/extensions/dsh-native/release.mjs
+!/extensions/dsh-native/README.md
 !/extensions/dsh-native-codex/
 !/extensions/dsh-native-codex/README.md
 !/extensions/dsh-native-codex/package.json

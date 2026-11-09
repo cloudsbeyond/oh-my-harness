@@ -6,6 +6,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server';
 import { createRegistry, endpoint } from './config.mjs';
 import { createTools, requestUpstream } from './tools.mjs';
 import { registerRealtimeTools } from './realtime.mjs';
+import { registerModelTools } from './model-tools.mjs';
 
 const bodyLimit = 8 * 1024 * 1024;
 function reject(res, status, message) {
@@ -63,11 +64,10 @@ export function gatewayServer(config, key, upstreamKey) {
   }
   const expected = Buffer.from(key);
   const mcp = createMcpHandler(({ requestInfo }) => {
-    const server = createTools({
-      registry,
-      gateway: (route, payload, timeout, signal) => requestUpstream(upstream, upstreamKey, route, payload, timeout,
-        AbortSignal.any([requestInfo.signal, ...(signal ? [signal] : [])])),
-    });
+    const gateway = (route, payload, timeout, signal) => requestUpstream(upstream, upstreamKey, route, payload, timeout,
+      AbortSignal.any([requestInfo.signal, ...(signal ? [signal] : [])]));
+    const server = createTools({ registry, gateway });
+    if (config.modelTools) registerModelTools(server, { registry, gateway });
     registerRealtimeTools(server, { upstream, token: upstreamKey, registry, requestSignal: requestInfo.signal });
     return server;
   }, { maxRequestBodySize: bodyLimit, maxSubscriptions: 5 });

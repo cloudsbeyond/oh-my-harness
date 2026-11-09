@@ -38,8 +38,9 @@ const provider = z.strictObject({
   realtimeModel: modelId.optional(),
   transcriptionModel: modelId.optional(),
   tokenSource: z.enum(['proxy_estimate', 'provider_count']).optional(),
+  modelToolAliases: z.array(modelId).optional(),
   reasoningEffort: z.enum(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
-}).transform(({ tokenSource, ...item }) => item);
+});
 
 const listener = z.strictObject({
   port: z.number().int().min(1024).max(65535),
@@ -50,9 +51,15 @@ const listener = z.strictObject({
 const configSchema = z.strictObject({
   listen: listener,
   upstream: z.string(),
+  modelTools: z.boolean().optional(),
   providers: z.record(providerId, provider),
   defaults: z.partialRecord(storedCapability, providerId)
     .transform(({ structured, tokens, ...defaults }) => defaults),
+}).transform((config) => {
+  if (config.modelTools) return config;
+  const providers = Object.fromEntries(Object.entries(config.providers)
+    .map(([id, { tokenSource, modelToolAliases, ...item }]) => [id, item]));
+  return { ...config, providers };
 });
 
 export function endpoint(value, kind) {
@@ -97,6 +104,7 @@ export function readKey(file = gatewayKeyFile()) {
 export function createRegistry(config) {
   const providers = new Map(Object.entries(config.providers).map(([id, item]) => [id, { ...item, id }]));
   const models = new Map();
+  const modelToolAliases = new Map();
   if (!providers.size) throw new Error('Configure at least one provider');
   for (const [id, item] of providers) {
     const has = (name) => item.capabilities.includes(name);
@@ -110,6 +118,16 @@ export function createRegistry(config) {
       models.set(entry.id, item);
     }
   }
+  if (config.modelTools) {
+    for (const item of providers.values()) {
+      for (const alias of item.modelToolAliases ?? []) {
+        if (!item.capabilities.includes('text') || models.has(alias) || modelToolAliases.has(alias)) {
+          throw new Error('Model tool aliases must be unique and belong to a text provider');
+        }
+        modelToolAliases.set(alias, item);
+      }
+    }
+  }
   for (const name of capability.options) {
     const available = [...providers.values()].filter((item) => item.capabilities.includes(name));
     const preferred = config.defaults[name];
@@ -120,6 +138,11 @@ export function createRegistry(config) {
   return {
     has: (name) => Boolean(config.defaults[name]),
     list: () => [...providers.values()],
+    selectModelTool(model) {
+      const item = models.get(model) ?? modelToolAliases.get(model);
+      if (!item?.capabilities.includes('text')) throw new Error('Select a configured text model');
+      return item;
+    },
     select(name, id, model) {
       const owner = model === undefined ? undefined : models.get(model);
       const item = providers.get(id ?? owner?.id ?? config.defaults[name]);

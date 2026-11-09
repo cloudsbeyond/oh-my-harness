@@ -22,3 +22,10 @@
 !/deploy/nginx.conf.example
 !/test/
 !/test/*.test.mjs
+!/extensions/
+!/extensions/dsh-native-codex/
+!/extensions/dsh-native-codex/README.md
+!/extensions/dsh-native-codex/package.json
+!/extensions/dsh-native-codex/*.mjs
+!/extensions/dsh-native-codex/vendor/
+!/extensions/dsh-native-codex/vendor/LICENSE

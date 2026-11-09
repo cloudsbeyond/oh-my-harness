@@ -1,0 +1,12 @@
+{
+  "name": "oh-my-harness-dsh-native-codex",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Optional DSH adapter for Codex native search and images",
+  "scripts": {
+    "build": "node build-adapter.mjs && node build-release.mjs",
+    "test": "node --test *.test.mjs"
+  },
+  "engines": { "node": ">=24" }
+}

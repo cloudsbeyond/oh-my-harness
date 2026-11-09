@@ -33,7 +33,7 @@ async function listener(server, port = 0) {
   return server.address().port;
 }
 
-async function fixture(t) {
+async function fixture(t, configure = () => {}) {
   const scratch = await mkdtemp(path.join(tmpdir(), 'oh-my-harness-test-'));
   t.after(() => rm(scratch, { recursive: true, force: true }));
   const config = readConfig(defaultConfigPath);
@@ -41,6 +41,7 @@ async function fixture(t) {
     name: 'Example Messages', protocol: 'messages', capabilities: ['text', 'vision'],
     models: [{ id: 'example/assistant:latest', contextWindow: 32000, maxTokens: 4096 }],
   };
+  configure(config);
   const calls = [];
   const upstream = createServer(async (req, res) => {
     if (req.headers.authorization !== 'Bearer ' + upstreamKey) {
@@ -52,7 +53,16 @@ async function fixture(t) {
     const body = raw ? JSON.parse(raw) : {};
     calls.push({ path: req.url, body, headers: req.headers });
     if (req.url === '/v1/models') {
+      assert.equal(req.method, 'GET');
       return json(res, { data: Object.values(config.providers).flatMap((item) => item.models) });
+    }
+    if (req.url === '/v1/models/gpt-6.1-sol') {
+      assert.equal(req.method, 'GET');
+      return json(res, { id: 'gpt-6.1-sol' });
+    }
+    if (req.url === '/v1/messages/count_tokens') {
+      assert.equal(req.headers['anthropic-version'], '2023-06-01');
+      return json(res, { input_tokens: 9 });
     }
     if (body.stream) {
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -70,10 +80,10 @@ async function fixture(t) {
     }
     if (req.url === '/v1/messages') return json(res, { model: body.model, content: [{ type: 'text', text: 'Messages result' }] });
     if (req.url === '/v1/chat/completions') return json(res, { model: body.model, choices: [
-      { finish_reason: 'stop', message: { content: 'Chat result' } },
+      { finish_reason: 'stop', message: { content: body.response_format ? '{"answer":7}' : 'Chat result' } },
     ] });
     if (req.url === '/v1/responses') {
-      const text = 'Responses result';
+      const text = body.text?.format ? '{"answer":7}' : 'Responses result';
       const output = [{ type: 'message', content: [{ type: 'output_text', text }] }];
       if (body.tools?.[0]?.type === 'web_search') output.push({
         type: 'web_search_call', status: 'completed', action: { type: 'open_page', url: 'https://www.example.com/article' },
@@ -162,6 +172,44 @@ test('HTTP MCP advertises capability tools, dispatches three protocols and keeps
     const search = await call('web_search', { provider: 'kimi', query: 'find sources' });
     assert.deepEqual(search.sources, [{ url: 'https://www.example.com/article', title: 'Example' }]);
     assert.equal(calls.at(-1).body.tool_choice.name, 'web_search');
+  });
+});
+
+test('optional model tools preserve legacy names and route by configured model', async (t) => {
+  const { mcpURL, calls } = await fixture(t, (config) => {
+    config.modelTools = true;
+    config.providers.codex.tokenSource = 'proxy_estimate';
+    config.providers.codex.modelToolAliases = ['codex-auto-review'];
+    config.providers.kimi.tokenSource = 'provider_count';
+  });
+  await withGatewayClient(mcpURL, downstreamKey, async (client) => {
+    const { tools } = await client.listTools();
+    assert.deepEqual(tools.map(({ name }) => name).sort(), [
+      'ask_audio', 'count_input_tokens', 'edit_image', 'generate_image', 'generate_structured',
+      'generate_text', 'get_model', 'inspect_document', 'inspect_image', 'inspect_video',
+      'list_models', 'list_providers', 'synthesize_speech', 'transcribe_audio', 'web_search',
+    ]);
+    const call = (name, args) => client.callTool({ name, arguments: args });
+    assert.equal(answer(await call('get_model', { model: 'gpt-6.1-sol' })).id, 'gpt-6.1-sol');
+    assert.equal(answer(await call('list_models', {})).models.length, 3);
+    assert.equal(answer(await call('generate_text', { model: 'codex-auto-review', prompt: 'test' })).answer, 'Responses result');
+    assert.equal(calls.at(-1).body.model, 'codex-auto-review');
+    const schema = { type: 'object', properties: { answer: { type: 'integer' } }, required: ['answer'], additionalProperties: false };
+    for (const [model, route, expected, source] of [
+      ['gpt-6.1-sol', '/v1/responses', 'Responses result', 'proxy_estimate'],
+      ['kimi-k3', '/v1/chat/completions', 'Chat result', 'provider_count'],
+    ]) {
+      const args = { model, prompt: 'Return the answer.' };
+      assert.equal(answer(await call('generate_text', args)).answer, expected);
+      assert.equal(calls.at(-1).path, route);
+      assert.deepEqual(answer(await call('generate_structured', { ...args, schema })).data, { answer: 7 });
+      assert.equal(calls.at(-1).path, route);
+      assert.deepEqual(answer(await call('count_input_tokens', args)), { model, input_tokens: 9, source });
+    }
+    const before = calls.length;
+    assert.equal((await call('generate_text', { model: 'not-configured', prompt: 'test' })).isError, true);
+    assert.equal((await call('generate_structured', { model: 'gpt-6.1-sol', prompt: 'test', schema: { ...schema, additionalProperties: true } })).isError, true);
+    assert.equal(calls.length, before);
   });
 });
 

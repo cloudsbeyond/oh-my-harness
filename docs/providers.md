@@ -22,6 +22,8 @@ For a DSH conversation that uses Kimi and a search tool that uses Codex, set `de
 
 Document and video inputs are limited to 5 MiB. DSH passes `file` and, for image comparison, `second_file` through the local adapter. Direct MCP clients use the Base64 inputs above. `list_providers` shows the configured providers, model IDs and enabled tool capabilities. Test capabilities on your upstream with representative inputs.
 
+Set `modelTools: true` in an operator config to opt in to five stateless MCP tools for existing workflows. `list_models` and `get_model` query upstream metadata. `generate_text` uses the selected model's configured protocol. Add `modelToolAliases` to a text provider for aliases used by MCP workflows that do not need a DSH conversation entry. `generate_structured` validates strict JSON Schema output from a compatible Responses or Chat model. `count_input_tokens` requires a provider `tokenSource` of `proxy_estimate` or `provider_count` and an upstream that implements `/v1/messages/count_tokens`. Use the source field to interpret the result. Conversation streaming still uses the separate model API.
+
 Provider API keys and OAuth login live in CLIProxyAPI. Add the relevant key group to its private configuration or use its login command. [CLIProxyAPI provider and key examples](https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.51/config.example.yaml)
 
 ## Extend capabilities

@@ -69,11 +69,11 @@ function documentMimeType(filename, data) {
 export async function requestUpstream(base, key, route, payload, timeoutMs, signal) {
   if (!key) throw new Error('The upstream key is missing');
   const response = await fetch(new URL(route, base), {
-    method: 'POST',
+    method: payload === undefined ? 'GET' : 'POST',
     headers: {
       Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json',
-      ...(route === 'messages' ? { 'anthropic-version': '2023-06-01' } : {}),
+      ...(route === 'messages' || route === 'messages/count_tokens' ? { 'anthropic-version': '2023-06-01' } : {}),
     },
     body: JSON.stringify(payload),
     redirect: 'error',
@@ -86,11 +86,11 @@ export async function requestUpstream(base, key, route, payload, timeoutMs, sign
   return response.json();
 }
 
-function textResult(data) {
+export function textResult(data) {
   return { content: [{ type: 'text', text: JSON.stringify(data) }] };
 }
 
-function responseText(response) {
+export function responseText(response) {
   const parts = (response.output ?? [])
     .filter((item) => item.type === 'message')
     .flatMap((item) => item.content ?? [])
@@ -115,7 +115,7 @@ function decodeGeneratedImage(result) {
 
 const question = z.string().trim().min(1).max(1600);
 const providerInput = z.string().max(40).optional();
-const prompt = z.string().trim().min(1).max(8000);
+export const prompt = z.string().trim().min(1).max(8000);
 const imageOptions = {
   n: 1,
   size: '1024x1024',
@@ -145,13 +145,13 @@ function searchSources(entries, page) {
   return [...sources.values()];
 }
 
-function messagesText(response) {
+export function messagesText(response) {
   const text = (response.content ?? []).filter((item) => item.type === 'text').map((item) => item.text).join('\n').trim();
   if (!text) throw new Error('The gateway did not return a text answer');
   return text;
 }
 
-function chatText(response) {
+export function chatText(response) {
   const choice = response.choices?.[0];
   const text = choice?.message?.content;
   if (choice?.finish_reason !== 'stop' || typeof text !== 'string' || !text.trim()) {

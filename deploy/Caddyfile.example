@@ -1,0 +1,14 @@
+gateway.example.com {
+	@models path /v1 /v1/*
+	handle @models {
+		reverse_proxy 127.0.0.1:8317
+	}
+
+	handle /mcp {
+		reverse_proxy 127.0.0.1:8318
+	}
+
+	handle {
+		respond 404
+	}
+}

@@ -1,0 +1,24 @@
+# Only files intended for a public checkout are admitted.
+*
+!/.gitignore
+!/LICENSE
+!/README.md
+!/README.zh.md
+!/package.json
+!/package-lock.json
+!/src/
+!/src/*.mjs
+!/bin/
+!/bin/oh-my-harness.mjs
+!/config/
+!/config/default.json
+!/config/providers.example.json
+!/docs/
+!/docs/*.md
+!/docs/architecture.json
+!/docs/architecture.png
+!/deploy/
+!/deploy/Caddyfile.example
+!/deploy/nginx.conf.example
+!/test/
+!/test/*.test.mjs

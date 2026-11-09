@@ -1,0 +1,60 @@
+{
+  "listen": {
+    "port": 8318
+  },
+  "upstream": "http://127.0.0.1:8317/v1",
+  "providers": {
+    "codex": {
+      "name": "Codex",
+      "protocol": "responses",
+      "models": [
+        {
+          "id": "gpt-6.1-sol",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        }
+      ],
+      "capabilities": [
+        "text",
+        "vision",
+        "documents",
+        "search",
+        "images",
+        "audio"
+      ],
+      "search": "responses",
+      "imageModel": "gpt-image-2",
+      "realtimeModel": "gpt-realtime",
+      "transcriptionModel": "gpt-4o-mini-transcribe",
+      "reasoningEffort": "low"
+    },
+    "kimi": {
+      "name": "Kimi",
+      "protocol": "chat",
+      "models": [
+        {
+          "id": "kimi-k3",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        }
+      ],
+      "capabilities": [
+        "text",
+        "vision",
+        "video",
+        "search"
+      ],
+      "search": "messages",
+      "reasoningEffort": "low"
+    }
+  },
+  "defaults": {
+    "text": "codex",
+    "search": "codex",
+    "vision": "codex",
+    "documents": "codex",
+    "video": "kimi",
+    "images": "codex",
+    "audio": "codex"
+  }
+}

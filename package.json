@@ -1,0 +1,24 @@
+{
+  "name": "oh-my-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Expose authorized provider capabilities as MCP tools for harnesses and agents",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "init": "node bin/oh-my-harness.mjs init",
+    "proxy": "node bin/oh-my-harness.mjs proxy",
+    "start": "node bin/oh-my-harness.mjs start",
+    "doctor": "node bin/oh-my-harness.mjs doctor",
+    "dsh": "node bin/oh-my-harness.mjs dsh",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@modelcontextprotocol/server": "2.4.0",
+    "zod": "4.6.7"
+  }
+}

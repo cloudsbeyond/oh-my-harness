@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "project": "oh-my-harness",
+  "focus": "通过同一套 MCP 工具复用已授权的供应方和 harness 能力。当前实现通过 CLIProxyAPI 调用供应方，独立 harness 是直连适配器的扩展路径。",
+  "roles": {
+    "modelProxy": {
+      "implementation": "CLIProxyAPI",
+      "endpoint": "https://gateway.example.com/v1",
+      "credential": "modelClientKey",
+      "purpose": "提供模型发现和推理接口，承载供应方登录和请求路由",
+      "interfaces": [
+        "Responses",
+        "Chat Completions",
+        "Messages",
+        "SSE"
+      ],
+      "listen": "http://127.0.0.1:8317"
+    },
+    "capabilityProxy": {
+      "implementation": "oh-my-harness MCP server",
+      "endpoint": "https://gateway.example.com/mcp",
+      "listen": "http://127.0.0.1:8318",
+      "credential": "capabilityClientKey",
+      "purpose": "把供应方或独立 harness 的已授权能力封装成 MCP 工具",
+      "examples": [
+        {
+          "tool": "web_search",
+          "provider": "Codex",
+          "adapter": "Responses web_search",
+          "evidence": "原生工具动作和来源"
+        },
+        {
+          "tool": "web_search",
+          "provider": "Kimi",
+          "adapter": "Messages web_search_20250305",
+          "evidence": "服务端搜索回执"
+        },
+        {
+          "tool": "generate_image",
+          "provider": "Codex",
+          "adapter": "Responses image_generation"
+        },
+        {
+          "tool": "inspect_document",
+          "provider": "Codex",
+          "adapter": "Responses input_file"
+        },
+        {
+          "tool": "ask_audio",
+          "provider": "支持 Realtime 的上游",
+          "adapter": "Realtime WebSocket，回环 HTTP 上游使用 WS，HTTPS 上游使用 WSS"
+        }
+      ],
+      "availability": "当前工具取决于账号、模型和 CLIProxyAPI 路由。独立 harness 路径需要专用适配器和该服务的授权。",
+      "upstreams": [
+        {
+          "source": "CLIProxyAPI",
+          "status": "implemented",
+          "defaultEndpoint": "http://127.0.0.1:8317/v1",
+          "credential": "capabilityUpstreamKey"
+        },
+        {
+          "source": "independentHarness",
+          "status": "extension",
+          "connection": "通过专用 MCP 或 HTTP 适配器直连",
+          "credential": "harnessUpstreamCredential"
+        }
+      ]
+    }
+  },
+  "credentials": {
+    "modelClientKey": {
+      "consumer": "模型客户端",
+      "validator": "CLIProxyAPI access.api-keys",
+      "clientConfig": "OH_MY_HARNESS_MODEL_KEY_FILE"
+    },
+    "capabilityClientKey": {
+      "consumer": "MCP 客户端",
+      "validator": "Capability Proxy",
+      "clientConfig": "OH_MY_HARNESS_KEY_FILE"
+    },
+    "capabilityUpstreamKey": {
+      "consumer": "Capability Proxy",
+      "validator": "CLIProxyAPI access.api-keys",
+      "serviceConfig": "OH_MY_HARNESS_UPSTREAM_KEY_FILE",
+      "policy": "可为 Capability Proxy 单独配置 CLIProxyAPI 客户端密钥"
+    },
+    "providerAuthorization": {
+      "consumer": "CLIProxyAPI",
+      "storage": "CLIProxyAPI 所在主机的私有凭据目录",
+      "forms": [
+        "用户授权的 Agent 登录态",
+        "供应方 API Key"
+      ]
+    },
+    "harnessUpstreamCredential": {
+      "consumer": "Capability Proxy 的独立 harness 适配器",
+      "validator": "独立 harness",
+      "status": "extension"
+    }
+  },
+  "deployment": {
+    "primary": {
+      "clientHost": [
+        "DSH",
+        "stdio 文件适配器",
+        "本地会话和文件"
+      ],
+      "upstreamTransport": "Capability Proxy 通过同机回环 HTTP 或 WebSocket 连接 CLIProxyAPI。",
+      "clientConfig": {
+        "OH_MY_HARNESS_MODEL_URL": "https://gateway.example.com/v1",
+        "OH_MY_HARNESS_MCP_URL": "https://gateway.example.com/mcp"
+      },
+      "mode": "hosted",
+      "gatewayHost": [
+        "统一 HTTPS 接入层",
+        "CLIProxyAPI Model Proxy",
+        "oh-my-harness Capability Proxy"
+      ]
+    },
+    "alternative": {
+      "placement": "Capability Proxy 也可与 DSH 同机运行",
+      "mcp": "http://127.0.0.1:8318/mcp",
+      "upstream": "可访问的模型 HTTPS 入口或同机 CLIProxyAPI 回环 HTTP 地址"
+    },
+    "separateHostnames": {
+      "ingress": "同一台自管网关主机上的 HTTPS 接入层",
+      "modelEndpoint": "https://models.example.com/v1",
+      "capabilityEndpoint": "https://capabilities.example.com/mcp",
+      "capabilityPublicOrigin": "https://capabilities.example.com"
+    }
+  },
+  "diagram": {
+    "groups": [
+      {
+        "id": "client",
+        "label": "DSH 所在机器",
+        "nodes": [
+          "dsh",
+          "stdio"
+        ]
+      },
+      {
+        "id": "gatewayHost",
+        "label": "托管部署 · 网关主机",
+        "nodes": [
+          "model",
+          "edge",
+          "capability"
+        ]
+      }
+    ],
+    "nodes": [
+      {
+        "id": "dsh",
+        "label": [
+          "DSH",
+          "会话和工具编排"
+        ]
+      },
+      {
+        "id": "stdio",
+        "label": [
+          "本地 stdio 适配器",
+          "文件与 MCP 数据转换"
+        ]
+      },
+      {
+        "id": "model",
+        "label": [
+          "Model Proxy · CLIProxyAPI",
+          "回环监听",
+          "模型推理和供应方登录"
+        ]
+      },
+      {
+        "id": "edge",
+        "label": [
+          "统一 HTTPS 接入层",
+          "Caddy 或 NGINX"
+        ]
+      },
+      {
+        "id": "capability",
+        "label": [
+          "Capability Proxy · oh-my-harness",
+          "回环监听",
+          "搜索、图像、文档、语音等 MCP 工具"
+        ]
+      },
+      {
+        "id": "agents",
+        "label": [
+          "Codex、Kimi 等",
+          "已授权的 Agent 和模型服务"
+        ]
+      },
+      {
+        "id": "independentHarness",
+        "label": [
+          "独立 harness",
+          "扩展路径"
+        ],
+        "status": "extension"
+      }
+    ],
+    "edges": [
+      {
+        "from": "dsh",
+        "to": "edge",
+        "label": "HTTPS /v1 · 模型密钥",
+        "credential": "modelClientKey"
+      },
+      {
+        "from": "dsh",
+        "to": "stdio",
+        "label": "本地工具调用"
+      },
+      {
+        "from": "stdio",
+        "to": "edge",
+        "label": "HTTPS /mcp · 能力密钥",
+        "credential": "capabilityClientKey"
+      },
+      {
+        "from": "edge",
+        "to": "model",
+        "label": "/v1 路由"
+      },
+      {
+        "from": "edge",
+        "to": "capability",
+        "label": "/mcp 路由"
+      },
+      {
+        "from": "capability",
+        "to": "model",
+        "label": "回环 · 上游客户端密钥",
+        "credential": "capabilityUpstreamKey"
+      },
+      {
+        "from": "model",
+        "to": "agents",
+        "label": "供应方账号授权",
+        "credential": "providerAuthorization"
+      },
+      {
+        "from": "capability",
+        "to": "independentHarness",
+        "label": "直接调用 MCP 或 HTTP 工具",
+        "credential": "harnessUpstreamCredential",
+        "status": "extension"
+      }
+    ]
+  },
+  "ingress": {
+    "implementation": [
+      "Caddy",
+      "NGINX"
+    ],
+    "placement": "自管网关主机",
+    "publicOrigin": "https://gateway.example.com",
+    "tlsTermination": "ingress",
+    "routes": [
+      {
+        "path": "/v1",
+        "match": "exact-and-subpaths",
+        "target": "modelProxy",
+        "preservePath": true
+      },
+      {
+        "path": "/mcp",
+        "match": "exact",
+        "target": "capabilityProxy",
+        "preservePath": true
+      }
+    ],
+    "defaultStatus": 404,
+    "backendExposure": "回环监听，后端端口不进入公网防火墙规则"
+  },
+  "problem": "不同供应方和 harness 的单项能力使用不同接口，客户端分别接入会重复实现路由、请求和结果解析。",
+  "clients": {
+    "primaryExample": "DSH",
+    "modelClient": "兼容 CLIProxyAPI 对应协议的任意客户端",
+    "capabilityClient": "支持 Streamable HTTP MCP 的任意 harness 或 agent",
+    "compositionExample": {
+      "harness": "DSH",
+      "conversationProvider": "Kimi",
+      "tool": "web_search",
+      "toolProvider": "Codex"
+    }
+  },
+  "version": "0.1.0"
+}

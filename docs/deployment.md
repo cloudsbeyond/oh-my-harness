@@ -38,7 +38,7 @@ The model check reports advertised IDs and any missing configured text models. T
 
 Other clients can connect directly to the Model Proxy and Capability Proxy with their respective protocols and keys. dsh-go users can connect to the DSH host using the app's remote connection setup. Configure both endpoints on that host. [dsh-go](https://github.com/ccch1mneyyy/dsh-Go)
 
-For an existing DSH deployment, keep your profile and point its MCP client or file adapter at the Capability Proxy. The [optional Codex native extension](../extensions/dsh-native-codex/README.md) adds search citations and image attachments directly to a DSH Responses provider. The same tools remain available over MCP, including for conversations using another provider.
+For an existing DSH deployment, keep your profile and point its MCP client or file adapter at the Capability Proxy. For native search citations and image attachments in a GPT conversation, install the optional Codex plugin on the DSH host and load its release entry in the Web profile. Select a GPT model from the provider registered by the plugin. It uses the provider's configured `/v1` route. Conversations using another provider can use the search and image tools over `/mcp`. [Install and verify the optional plugin](../extensions/dsh-native-codex/README.md)
 
 [DSH native extension development](../extensions/dsh-native/README.md) describes the shared release format and how to add a provider-specific plugin.
 

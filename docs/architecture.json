@@ -118,6 +118,16 @@
         "oh-my-harness Capability Proxy"
       ]
     },
+    "optionalDshNativeExtension": {
+      "placement": "DSH 所在主机，由 DSH Web profile 加载",
+      "registration": "通过 DSH 运行时为选定的 Codex 供应方注册模型适配器",
+      "modelRoute": "通过配置的 Model Proxy /v1 发出 Responses 请求",
+      "outputs": [
+        "搜索引用",
+        "会话回放状态",
+        "图片附件"
+      ]
+    },
     "alternative": {
       "placement": "Capability Proxy 也可与 DSH 同机运行",
       "mcp": "http://127.0.0.1:8318/mcp",

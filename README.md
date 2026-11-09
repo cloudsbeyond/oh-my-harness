@@ -33,6 +33,8 @@ npm run dsh
 
 `npm run dsh` opens a separate DSH Web profile and workspace. Try `mcp__gateway__web_search` in a session, for example by asking for MCP transport options with sources. If a model ID differs from what your account advertises, update `.state/config.json` using the output from `doctor -- --models`. A tool call verifies that the upstream can perform the capability.
 
+The quickstart uses MCP for tools. For native search citations and generated images in a GPT conversation, install the optional Codex adapter on the DSH host, enable it in the Web profile, and select a GPT model from the provider it registers. [Optional DSH Codex adapter](extensions/dsh-native-codex/README.md)
+
 | Local endpoint | URL | Key file |
 | --- | --- | --- |
 | Model Proxy | `http://127.0.0.1:8317/v1` | `.state/model.key` |

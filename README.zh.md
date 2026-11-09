@@ -33,6 +33,8 @@ npm run dsh
 
 `npm run dsh` 启动独立的 DSH Web 配置和工作区。在会话中试用 `mcp__gateway__web_search`，例如请它查询 MCP 的传输方式并列出来源。模型 ID 如果与账号可用的模型不符，根据 `doctor -- --models` 输出调整 `.state/config.json`。工具调用的结果用于验证上游能力。
 
+快速开始通过 MCP 调用工具。如需在 GPT 模型对话中直接获得原生搜索引用和生成图，可在 DSH 主机上安装可选的 Codex 适配器，在 Web profile 中启用，并从它注册的供应方中选择 GPT 模型。 [可选 DSH Codex 扩展](extensions/dsh-native-codex/README.md)
+
 | 本地入口 | 地址 | 密钥文件 |
 | --- | --- | --- |
 | Model Proxy | `http://127.0.0.1:8317/v1` | `.state/model.key` |

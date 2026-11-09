@@ -1,15 +1,17 @@
 # Architecture
 
-oh-my-harness exposes upstream capabilities as Streamable HTTP MCP tools. DSH is the primary integration. Any harness or agent with a Streamable HTTP MCP client can consume the same tools. [Architecture diagram](architecture.png) · [Machine-readable architecture](architecture.json)
+oh-my-harness exposes upstream capabilities as Streamable HTTP MCP tools for any compatible harness or agent. The DSH quickstart is a client example. [Architecture diagram](architecture.png) · [Machine-readable architecture](architecture.json)
 
 | Component | Responsibility | Entry point |
 | --- | --- | --- |
 | CLIProxyAPI | Provider login, model catalog, protocol translation, and upstream routing | `npm run proxy` launches the external CLIProxyAPI executable. Clients use its `/v1` API. |
 | Capability Proxy | Tool discovery, input validation, provider-specific calls, and MCP results | `npm start` starts oh-my-harness. Clients use its `/mcp` endpoint. |
-| DSH integration | Client configuration and file conversion for DSH sessions | `npm run dsh` starts DSH Web and configures both endpoints. |
+| DSH client integration | Client configuration and MCP file conversion for DSH sessions | `npm run dsh` starts DSH Web and configures both endpoints. |
 | HTTPS ingress | TLS and public routing in a hosted deployment | Caddy or NGINX routes model and MCP traffic to their respective loopback listeners on the gateway host. |
 
 DSH sends conversation requests to CLIProxyAPI and tool requests to the Capability Proxy. The two paths can use different sources. For example, a conversation can use Kimi while its search tool uses Codex.
+
+The optional native extension is installed on the DSH host and loaded by its Web profile. It registers an adapter for the selected Codex provider, sends Responses requests through the configured Model Proxy, and turns provider events into DSH citations, replay state, and image attachments. The diagram shows the standard MCP integration. [DSH native extensions](../extensions/dsh-native/README.md)
 
 | Capability upstream | Route | Status |
 | --- | --- | --- |
@@ -27,7 +29,7 @@ The included Codex search route requests a native Responses tool and the Kimi se
 | Capability client key | The Capability Proxy checks it on `/mcp`. The default file is `.state/gateway.key`. |
 | Capability upstream key | The Capability Proxy presents a CLIProxyAPI client key when it calls upstream. The default is the model key file. An operator can configure a separate file. |
 
-The DSH adapter runs on the DSH machine. It reads inputs from `gateway-tools/` inside the configured workspace and sends their bytes through MCP. It saves generated PNG and WAV results in that directory. Direct HTTP MCP clients send and receive the media described by the tool schemas.
+The DSH MCP file adapter runs on the DSH machine. It reads inputs from `gateway-tools/` inside the configured workspace and sends their bytes through MCP. It saves generated PNG and WAV results in that directory. Direct HTTP MCP clients send and receive the media described by the tool schemas.
 
 An authorized paid agent account can supply an individual tool to a workflow whose conversation uses another provider. Capability access depends on the account, the selected model and the CLIProxyAPI route. Configuration selects which tools to advertise. Model discovery and MCP discovery can be checked separately, then an actual tool call checks the upstream route. [Deployment and checks](deployment.md)
 

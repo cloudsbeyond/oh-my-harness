@@ -4,7 +4,7 @@
 
 A harness that can call a model still needs to integrate each provider's web search, image, document, and speech interfaces. For example, Codex exposes search actions through Responses, while Kimi returns server search results through Messages. Implementing these integrations in every client repeats the routing, request handling, and result parsing.
 
-oh-my-harness packages capabilities from different sources as reusable MCP tools. In DSH, a conversation can use Kimi for reasoning and call Codex's `web_search` for a lookup with sources. The current release uses accounts you authorize in CLIProxyAPI, including paid agent subscriptions. The extension path uses a dedicated adapter in the Capability Proxy to call tools exposed by an independent harness directly. [Architecture](docs/architecture.md)
+oh-my-harness packages capabilities from different sources as reusable MCP tools. In DSH, a conversation can use Kimi for reasoning and call Codex's `web_search` for a lookup with sources. The current release uses accounts you authorize in CLIProxyAPI, including paid agent subscriptions. An independent harness is another upstream source. Connecting it directly requires a dedicated adapter in the Capability Proxy. [Architecture](docs/architecture.md)
 
 ![HTTPS ingress routes model and MCP requests separately. The Capability Proxy calls CLIProxyAPI and can be extended with a direct independent harness adapter.](docs/architecture.png)
 

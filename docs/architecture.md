@@ -16,7 +16,7 @@ DSH sends conversation requests to CLIProxyAPI and tool requests to the Capabili
 | Provider-native tools | Capability Proxy calls CLIProxyAPI, which routes the request to the authorized provider | Included in the current release |
 | Independent harness tools | A dedicated adapter calls the harness's MCP or HTTP tool interface directly from the Capability Proxy | Extension path that requires an adapter |
 
-The included Codex search route requests a native Responses tool and the Kimi search route uses the Messages server tool. Search results are checked against upstream tool actions or result blocks. Audio tools use CLIProxyAPI's Realtime WebSocket route. A direct harness adapter would use the independent service's own tool contract and credentials. Both paths expose a tool contract at the same client-facing MCP endpoint. [Provider configuration and extension workflow](providers.md)
+The included Codex search route requests a native Responses tool and the Kimi search route uses the Messages server tool. Search results are checked against upstream tool actions or result blocks. Audio tools use CLIProxyAPI's Realtime WebSocket route. A direct harness adapter would use the independent service's own tool contract and credentials, then expose its tools through the same client-facing MCP endpoint. [Provider configuration and extension workflow](providers.md)
 
 ## Credentials and files
 

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { publishRelease } from '../dsh-native/release.mjs';
 import { stateRoot } from './paths.mjs';
 
-const files = ['plugin.mjs', 'native-search.mjs', 'native-images.mjs', 'vendor/dsh-pi-adapter.mjs', 'vendor/LICENSE'];
+const files = ['plugin.mjs', 'native-search.mjs', 'native-images.mjs', 'transport.mjs', 'vendor/dsh-pi-adapter.mjs', 'vendor/LICENSE'];
 const inputs = new Map(await Promise.all(files.map(async (file) => [
   file, await readFile(new URL(file, import.meta.url), 'utf8'),
 ])));

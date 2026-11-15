@@ -28,7 +28,7 @@ replaceOnce(
 );
 replaceOnce(
   '\t\t\t\t\theaders: requestHeaders(profile.headers)\n\t\t\t\t}), model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]();',
-  '\t\t\t\t\theaders: requestHeaders(profile.headers),\n\t\t\t\t\tonPayload: extension?.onPayload,\n\t\t\t\t\tonProviderStreamEvent: extension?.onProviderStreamEvent\n\t\t\t\t}), model.contextWindow, options.signal, model.id);\n\t\t\t\tconst iterator = (extension?.wrapStream?.(source) ?? source)[Symbol.asyncIterator]();',
+  '\t\t\t\t\theaders: requestHeaders(profile.headers),\n\t\t\t\t\tfetch: extension?.fetch,\n\t\t\t\t\tonPayload: extension?.onPayload,\n\t\t\t\t\tonProviderStreamEvent: extension?.onProviderStreamEvent\n\t\t\t\t}), model.contextWindow, options.signal, model.id);\n\t\t\t\tconst iterator = (extension?.wrapStream?.(source) ?? source)[Symbol.asyncIterator]();',
 );
 replaceOnce(
   'export { Config, PiAiAdapter, apply, inject, name, recordKeyFor, supportedProtocols };',

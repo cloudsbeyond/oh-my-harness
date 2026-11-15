@@ -2,6 +2,7 @@ import { Config as PiConfig, PiAiAdapter, resolveProfiles, credentialStoreFrom, 
 import { LlmError, assertUsableApiKey, resolveImageAttachmentAccess } from '@deepseek-ai/dsh-llm';
 import { prepareNativeSearch } from './native-search.mjs';
 import { prepareNativeImages } from './native-images.mjs';
+import { prepareTransport } from './transport.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 
@@ -63,7 +64,16 @@ export function createAdapter(ctx, raw, onDispatch) {
       onDispatch?.({ provider: options.provider, model: options.model, purpose: options.purpose ?? 'main', dispatchedAt: new Date().toISOString() });
       const images = prepareNativeImages(options, ctx.get('attachments'), policy.images);
       const search = prepareNativeSearch(options, policy, images);
-      return { ...search, wrapStream: (stream) => images.wrap(search.wrapStream(stream)) };
+      const transport = prepareTransport({ nativeImageRequested: Boolean(images.tool) });
+      return {
+        fetch: transport.fetch,
+        onPayload: search.onPayload,
+        onProviderStreamEvent(event, model) {
+          transport.observe(event);
+          return search.onProviderStreamEvent(event, model);
+        },
+        wrapStream: (stream) => images.wrap(search.wrapStream(transport.wrap(stream))),
+      };
     },
   });
   return { adapter, profiles, policy, routes: [...profiles.keys()] };

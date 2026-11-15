@@ -4,6 +4,10 @@ Install this adapter on the DSH host to keep native search citations and generat
 
 A successful native image call delivers the original PNG and a normalized attachment for follow-up. The adapter omits the chat reasoning setting from image requests. Search citations and replay use DSH's existing response metadata. Title and compaction requests skip native search by default.
 
+The adapter attaches a unique client request ID to each Responses attempt. Failures record the response request ID when available and the client ID otherwise. When the HTTP transport exposes a low-level error code, the adapter preserves it as `cause.code` in the failure message.
+
+To retry transient disconnects, set the provider's `retryPolicy` to `{ mode: normal, maxRetries: 1, retryableCodes: [TRANSPORT] }` and keep DSH's `llm-retry` plugin active. DSH retries the current model step. After visible text, observed native tool activity, or a request that enables native image generation, an interruption is reported as `TRANSPORT_INTERRUPTED` and excluded by that policy. DSH dispatches local functions only after a successful model response.
+
 ## Build against the installed DSH version
 
 The build checks the DSH 0.2.1-rc.5 pi adapter hash. A mismatch requires reviewing the extension against that DSH release. The build reads the installed adapter and writes a separate copy.

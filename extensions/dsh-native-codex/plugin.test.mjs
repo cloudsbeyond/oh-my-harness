@@ -1,10 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { BlockAssembler } from '@deepseek-ai/dsh-llm';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
+import { promisify } from 'node:util';
+import { setTimeout as delay } from 'node:timers/promises';
 import { upstreamAdapter, stateRoot } from './paths.mjs';
 const entry = process.env.NATIVE_TEST_RELEASE === '1'
   ? JSON.parse(await readFile(new URL('release-manifest.json', stateRoot), 'utf8')).entry
@@ -55,8 +59,16 @@ async function serverFor(t, replies) {
       for await (const part of req) raw += part;
       requests.push({ path: req.url, headers: req.headers, body: JSON.parse(raw) });
       const events = replies[Math.min(requests.length - 1, replies.length - 1)];
-      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-      for (const event of events) res.write(`data: ${JSON.stringify(event)}\n\n`);
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'x-request-id': `mock-${requests.length}` });
+      for (const event of events) {
+        if (event === 'disconnect') {
+          await new Promise(resolve => res.write(': closing\n\n', resolve));
+          await delay(30);
+          res.destroy();
+          return;
+        }
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      }
       res.end('data: [DONE]\n\n');
     } catch (error) { res.writeHead(500); res.end(error.message); }
   });
@@ -70,6 +82,115 @@ async function run(adapter, messages, extra = {}) {
   for await (const chunk of adapter.stream({ provider: route, model: 'test-native', messages, ...extra })) { chunks.push(chunk); assembler.push(chunk); }
   return { chunks, assembler, message: assembler.message({ provider: route, model: 'test-native', replayState: assembler.replayState }) };
 }
+
+test('interrupted SSE preserves the socket code and per-attempt request IDs', async t => {
+  const mock = await serverFor(t, [['disconnect'], ['disconnect']]);
+  const { adapter } = createAdapter(ctx, config(mock.baseURL));
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const result = await run(adapter, [user('Answer briefly.')], { sessionId: 'same-session' });
+    const failure = result.assembler.finish.failure;
+    assert.equal(failure.code, 'TRANSPORT');
+    assert.equal(failure.requestId, `mock-${attempt}`);
+    assert.match(failure.message, /cause\.code=UND_ERR_SOCKET/);
+  }
+  const ids = mock.requests.map(request => request.headers['x-client-request-id']);
+  assert.ok(ids.every(id => /^[a-f0-9-]{36}$/.test(id)));
+  assert.notEqual(ids[0], ids[1]);
+  assert.ok(mock.requests.every(request => request.headers.session_id === 'same-session'));
+});
+
+async function runDsh(t, baseURL) {
+  const dshHome = await mkdtemp(path.join(tmpdir(), 'dsh-sse-retry-'));
+  t.after(() => rm(dshHome, { recursive: true, force: true }));
+  const workspace = path.join(dshHome, 'workspace');
+  const sessions = path.join(dshHome, 'sessions');
+  await mkdir(workspace);
+  const settings = config(baseURL, { enabled: false, images: false });
+  settings.providers[route].retryPolicy = { mode: 'normal', maxRetries: 1, retryableCodes: ['TRANSPORT'] };
+  const patch = path.join(dshHome, 'probe.yml');
+  await writeFile(patch, JSON.stringify([
+    { id: 'credentials', disabled: false },
+    { id: 'session-persistence-jsonl', config: { root: sessions, compression: 'none' } },
+    { id: 'session-title-llm', disabled: true },
+    { id: 'agent-default-model', config: { provider: route, model: 'test-native' } },
+    { insert: [{ id: 'native-retry-test', name: entry, config: settings }] },
+  ]));
+  await writeFile(path.join(dshHome, '.credentials.yaml'), JSON.stringify({
+    version: 1, refs: { TEST_NATIVE_KEY: 'local-test-only' }, records: {},
+  }), { mode: 0o600 });
+  const installed = await realpath(upstreamAdapter);
+  const nestedCli = path.join(installed, '../../../lib/bin.js');
+  const cli = await access(nestedCli).then(() => nestedCli, () => path.join(installed, '../dsh/lib/bin.js'));
+  const result = await promisify(execFile)(process.execPath, [cli, 'headless', '--patch', patch, 'Run the local fixture.'], {
+    cwd: workspace,
+    env: { ...process.env, DSH_HOME: dshHome, DSH_AGENTS_HOME: path.join(dshHome, 'agents') },
+    timeout: 30_000,
+    killSignal: 'SIGKILL',
+  }).catch(error => {
+    if (!Number.isInteger(error.code)) throw error;
+    return error;
+  });
+  const logs = (await readdir(sessions, { recursive: true })).filter(name => name.endsWith('session.v4.jsonl'));
+  const events = (await Promise.all(logs.map(async file =>
+    (await readFile(path.join(sessions, file), 'utf8')).trim().split('\n').map(JSON.parse),
+  ))).flat();
+  return { ...result, events, workspace };
+}
+
+test('DSH retries a failed step once and only executes a tool after a successful finish', async t => {
+  const tool = {
+    type: 'function_call', id: 'fc_count', call_id: 'call_count', name: 'bash',
+    arguments: JSON.stringify({ command: 'echo once >> tool-count.txt', description: 'Record one local tool invocation' }),
+    status: 'completed',
+  };
+  const successfulTool = responseEvents([tool], 'resp_tool');
+  const answer = { ...answerItem, content: [{ type: 'output_text', text: 'Tool ran once.', annotations: [] }] };
+  const mock = await serverFor(t, [[...successfulTool.slice(0, -1), 'disconnect'], successfulTool, responseEvents([answer], 'resp_answer')]);
+  const { stdout, stderr, events, workspace } = await runDsh(t, mock.baseURL);
+  assert.equal(stdout.trim(), 'Tool ran once.', stderr);
+  assert.equal(await readFile(path.join(workspace, 'tool-count.txt'), 'utf8'), 'once\n');
+  assert.equal(mock.requests.length, 3);
+  assert.deepEqual(mock.requests[0].body.input, mock.requests[1].body.input);
+  assert.equal(mock.requests[2].body.input.filter(item => item.type === 'function_call_output').length, 1);
+  const retries = events.filter(event => event.type === 'llm/retry');
+  assert.equal(retries.length, 1, events.map(event => event.type).join(' '));
+  assert.equal(retries[0].data.failure.requestId, 'mock-1');
+  assert.match(retries[0].data.failure.message, /cause\.code=UND_ERR_SOCKET/);
+  assert.ok(events.find(event => event.type === 'assistant/attempt')?.data.stream.some(
+    entry => entry.chunk?.type === 'block-end' && entry.chunk.block.type === 'tool-call',
+  ));
+  assert.equal(events.filter(event => event.type === 'tool/call').length, 1);
+  const answers = events.filter(event => event.type === 'assistant/message')
+    .flatMap(event => event.data.message.content.filter(block => block.type === 'text').map(block => block.text));
+  assert.deepEqual(answers, ['Tool ran once.']);
+});
+
+test('DSH stops after one retry and persists diagnostics for the final disconnect', async t => {
+  const mock = await serverFor(t, [['disconnect'], ['disconnect']]);
+  const { events } = await runDsh(t, mock.baseURL);
+  assert.equal(mock.requests.length, 2);
+  assert.equal(events.filter(event => event.type === 'llm/retry').length, 1);
+  assert.equal(events.filter(event => event.type === 'tool/call' || event.type === 'assistant/message').length, 0);
+  const reason = events.find(event => event.type === 'turn/end')?.data.reason;
+  assert.equal(reason.kind, 'error');
+  assert.equal(reason.error.code, 'TRANSPORT');
+  assert.equal(reason.error.requestId, 'mock-2');
+  assert.match(reason.error.message, /cause\.code=UND_ERR_SOCKET/);
+});
+
+test('a partial answer or started native search blocks transport replay', async t => {
+  const partial = responseEvents([{ ...answerItem, content: [{ type: 'output_text', text: 'Partial answer.', annotations: [] }] }]).slice(0, -1);
+  const mock = await serverFor(t, [
+    [...partial, 'disconnect'],
+    [{ type: 'response.web_search_call.in_progress', item_id: 'ws_started', output_index: 0 }, 'disconnect'],
+  ]);
+  const { adapter } = createAdapter(ctx, config(mock.baseURL));
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { assembler } = await run(adapter, [user('Answer briefly.')]);
+    assert.equal(assembler.finish.failure.code, 'TRANSPORT_INTERRUPTED');
+    assert.equal(assembler.finish.failure.requestId, `mock-${attempt}`);
+  }
+});
 
 test('configuration defaults auxiliary search off and rejects unsupported knobs/endpoints', () => {
   assert.equal(validateConfig(config()).policy.allowAuxiliary, false);

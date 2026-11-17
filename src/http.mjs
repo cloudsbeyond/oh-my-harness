@@ -4,8 +4,10 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { createRegistry, endpoint } from './config.mjs';
-import { createTools, requestUpstream } from './tools.mjs';
-import { registerRealtimeTools } from './realtime.mjs';
+import { createTools } from './tools.mjs';
+import { requestUpstream } from './capabilities/media.mjs';
+import { createProtocolRuntime } from './capabilities/protocol-provider.mjs';
+import { createRealtimeExecutor } from './capabilities/realtime.mjs';
 import { registerModelTools } from './model-tools.mjs';
 
 const bodyLimit = 8 * 1024 * 1024;
@@ -66,9 +68,11 @@ export function gatewayServer(config, key, upstreamKey) {
   const mcp = createMcpHandler(({ requestInfo }) => {
     const gateway = (route, payload, timeout, signal) => requestUpstream(upstream, upstreamKey, route, payload, timeout,
       AbortSignal.any([requestInfo.signal, ...(signal ? [signal] : [])]));
-    const server = createTools({ registry, gateway });
+    const capabilities = createProtocolRuntime({ registry, gateway,
+      ...(registry.has('audio') ? { realtime: createRealtimeExecutor({ upstream, token: upstreamKey, requestSignal: requestInfo.signal }) } : {}),
+    });
+    const server = createTools({ registry, capabilities });
     if (config.modelTools) registerModelTools(server, { registry, gateway });
-    registerRealtimeTools(server, { upstream, token: upstreamKey, registry, requestSignal: requestInfo.signal });
     return server;
   }, { maxRequestBodySize: bodyLimit, maxSubscriptions: 5 });
 

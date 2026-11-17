@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "原生语音输入（oh-my-harness）",
+    "description": "通过 oh-my-harness 能力供应方进行可选的麦克风转写并回填草稿。复用宿主 speech 注册表、speech Remote 与输入框草稿插入；录音会上传到所配置的云端供应方。转写只填入草稿，不会自动发送。依赖 oh-my-harness 能力插件提供 provider 路由。"
+  }
+}

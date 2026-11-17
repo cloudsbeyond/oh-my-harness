@@ -1,0 +1,40 @@
+{
+  "name": "oh-my-harness-voice-input",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Optional native voice input for oh-my-harness capabilities: reuses the Host speech registry, remote and composer draft insertion with a cloud provider adapter.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=24", "dsh": "0.2.2-rc.3" },
+  "exports": {
+    ".": "./index.mjs",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.mjs", "resample.mjs", "client.js", "cordis.patch.yml", "README.md", "LICENSE", "locale/*.json", "icon.svg"],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-api-gateway"
+      ],
+      "external": ["@deepseek-ai/dsh-experimental-api-speech-to-text/remote", "@deepseek-ai/dsh-api-gateway/client"]
+    }
+  },
+  "peerDependencies": {
+    "oh-my-harness": "^0.2.0",
+    "@deepseek-ai/dsh-experimental-speech-to-text": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-experimental-api-speech-to-text": "0.2.2-rc.3"
+  },
+  "peerDependenciesMeta": {
+    "oh-my-harness": { "optional": true },
+    "@deepseek-ai/dsh-experimental-speech-to-text": { "optional": true },
+    "@deepseek-ai/dsh-experimental-api-speech-to-text": { "optional": true }
+  }
+}

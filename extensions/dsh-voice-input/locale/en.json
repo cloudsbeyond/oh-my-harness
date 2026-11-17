@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Native voice input (oh-my-harness)",
+    "description": "Optional microphone-to-draft transcription through the oh-my-harness capability provider. Reuses the Host speech registry, speech Remote and composer draft insertion; recordings are sent to the configured cloud provider. Transcripts fill the draft and are never sent automatically. Requires the oh-my-harness capability bundle for provider routing."
+  }
+}

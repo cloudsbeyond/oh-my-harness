@@ -8,3 +8,6 @@ const dshNodeModules = path.resolve(process.env.DSH_NODE_MODULES ?? localModules
 export const upstreamAdapter = path.join(dshNodeModules, '@deepseek-ai/dsh-llm-pi-ai');
 const stateDirectory = path.resolve(process.env.DSH_NATIVE_STATE_DIR ?? path.join(dshHome, 'native-codex'));
 export const stateRoot = pathToFileURL(stateDirectory + path.sep);
+const sourceDirectory = fileURLToPath(new URL('./', import.meta.url));
+export const buildRoot = pathToFileURL(path.resolve(process.env.DSH_NATIVE_BUILD_DIR ?? path.join(sourceDirectory, '.build')) + path.sep);
+export const runtimeFiles = ['plugin.mjs', 'baseline.mjs', 'native-search.mjs', 'native-images.mjs', 'transport.mjs'];

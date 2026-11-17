@@ -9,12 +9,12 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
-import { upstreamAdapter, stateRoot } from './paths.mjs';
+import { upstreamAdapter, stateRoot, buildRoot } from './paths.mjs';
+import { captureDependencies, expectedHash } from './baseline.mjs';
 const entry = process.env.NATIVE_TEST_RELEASE === '1'
   ? JSON.parse(await readFile(new URL('release-manifest.json', stateRoot), 'utf8')).entry
-  : new URL('./plugin.mjs', import.meta.url).href;
+  : new URL('plugin.mjs', buildRoot).href;
 const { createAdapter, validateConfig, apply } = await import(entry);
-const expectedHash = '99b5c20830a52f69641df8a18a39206079b0c725201958cce2c4a934f1d4f7cd';
 const upstreamPath = path.join(upstreamAdapter, 'lib/index.js');
 
 const route = 'codex';
@@ -96,11 +96,19 @@ test('interrupted SSE preserves the socket code and per-attempt request IDs', as
   const ids = mock.requests.map(request => request.headers['x-client-request-id']);
   assert.ok(ids.every(id => /^[a-f0-9-]{36}$/.test(id)));
   assert.notEqual(ids[0], ids[1]);
-  assert.ok(mock.requests.every(request => request.headers.session_id === 'same-session'));
+  // pi-ai 1.5.2 renamed the native OpenAI affinity header; preserve the
+  // exact reviewed SDK dialect instead of accepting a missing/alternate header.
+  const sdkVersion = captureDependencies().packages['@earendil-works/pi-ai'].version;
+  const affinityHeader = { '1.3.0': 'session_id', '1.5.2': 'session-id' }[sdkVersion];
+  assert.ok(affinityHeader, `Unreviewed affinity-header baseline: ${sdkVersion}`);
+  assert.ok(mock.requests.every(request => request.headers[affinityHeader] === 'same-session'));
 });
 
 async function runDsh(t, baseURL) {
-  const dshHome = await mkdtemp(path.join(tmpdir(), 'dsh-sse-retry-'));
+  const dshHome = await realpath(await mkdtemp(path.join(tmpdir(), 'dsh-sse-retry-')));
+  // Cleanup only the exact directory this fixture owns, never a configured home.
+  assert.equal(path.dirname(dshHome), await realpath(tmpdir()));
+  assert.ok(path.basename(dshHome).startsWith('dsh-sse-retry-'));
   t.after(() => rm(dshHome, { recursive: true, force: true }));
   const workspace = path.join(dshHome, 'workspace');
   const sessions = path.join(dshHome, 'sessions');
@@ -121,9 +129,19 @@ async function runDsh(t, baseURL) {
   const installed = await realpath(upstreamAdapter);
   const nestedCli = path.join(installed, '../../../lib/bin.js');
   const cli = await access(nestedCli).then(() => nestedCli, () => path.join(installed, '../dsh/lib/bin.js'));
-  const result = await promisify(execFile)(process.execPath, [cli, 'headless', '--patch', patch, 'Run the local fixture.'], {
+  // The same explicit host resolver selects source and immutable-release inputs.
+  // Desktop's selected CLI lives in ASAR and needs its Electron Node runtime.
+  const result = await promisify(execFile)(process.execPath, [
+    '--import', new URL('../dsh-native/host-loader.mjs', import.meta.url).href,
+    cli, 'headless', '--patch', patch, 'Run the local fixture.',
+  ], {
     cwd: workspace,
-    env: { ...process.env, DSH_HOME: dshHome, DSH_AGENTS_HOME: path.join(dshHome, 'agents') },
+    env: {
+      ...process.env,
+      ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+      DSH_HOME: dshHome,
+      DSH_AGENTS_HOME: path.join(dshHome, 'agents'),
+    },
     timeout: 30_000,
     killSignal: 'SIGKILL',
   }).catch(error => {
@@ -227,6 +245,7 @@ test('native search reaches wire, sources are durable, and next turn replays nat
   assert.equal(payload.tool_choice.type, 'allowed_tools');
   assert.ok(!payload.tool_choice.tools.some((item) => item.type === 'image_generation'));
   assert.ok(mock.requests[0].headers['authorization'] === 'Bearer local-test-only');
+  assert.match(mock.requests[0].headers['x-client-request-id'], /^[0-9a-f-]{36}$/, 'the recovered transport must reach the actual SDK fetch');
   assert.match(mock.requests[0].headers['user-agent'], /deepseek-harness\//, 'wire request must retain DSH attribution');
   assert.ok(first.message.content.some((block) => block.type === 'text' && block.text.includes('https://example.com/docs')));
   assert.ok(first.message.source.replayState.response.nativeSearch);
@@ -247,6 +266,85 @@ test('ordinary function calls remain executable DSH calls, native searches do no
   assert.equal(result.assembler.finish.kind, 'tool-calls');
   assert.equal(result.message.content.filter((item) => item.type === 'tool-call').length, 1);
   assert.equal(result.message.content.find((item) => item.type === 'tool-call').name, 'read_local');
+});
+
+test('native image reaches the real wire, saves original bytes and feeds the next edit', async (t) => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aJ1sAAAAASUVORK5CYII=', 'base64');
+  const image = { type: 'image_generation_call', id: 'ig_fixture', status: 'completed', output_format: 'png', result: png.toString('base64') };
+  const plain = { ...answerItem, content: [{ type: 'output_text', text: 'Fixture image.', annotations: [] }] };
+  const mock = await serverFor(t, [responseEvents([image, plain]), responseEvents([plain], 'resp_edit')]);
+  const ref = { attachmentId: 'sha256:' + createHash('sha256').update(png).digest('hex'), mediaType: 'image/png', bytes: png.length, width: 1, height: 1 };
+  const saved = [];
+  const attachments = {
+    async saveImage(input) { saved.push({ kind: 'image', ...input }); return ref; },
+    async saveFile(input) { saved.push({ kind: 'file', ...input }); return { attachmentId: ref.attachmentId, bytes: png.length, name: input.name }; },
+    fileHostPath(original) { assert.equal(original.attachmentId, ref.attachmentId); return '/tmp/native-fixture.png'; },
+    async readImage() { return { ref, data: png }; },
+  };
+  const imageCtx = { ...ctx, get(name) { return name === 'attachments' ? attachments : ctx.get(name); } };
+  const { adapter } = createAdapter(imageCtx, config(mock.baseURL));
+  const first = await run(adapter, [user('Draw an image of a square.')]);
+  assert.equal(first.assembler.finish.kind, 'stop');
+  assert.ok(mock.requests[0].body.tools.some((tool) => tool.type === 'image_generation'));
+  assert.equal(mock.requests[0].body.reasoning, undefined);
+  assert.equal(saved.length, 2);
+  assert.deepEqual(saved[0].data, png);
+  assert.deepEqual(saved[1].data, png);
+  assert.match(first.message.content.filter((part) => part.type === 'text').map((part) => part.text).join(''), /原图 PNG/);
+  assert.deepEqual(first.message.source.replayState.response.nativeImages.image, ref);
+  assert.equal(first.message.source.replayState.response.nativeImages.original.attachmentId, ref.attachmentId);
+  await run(adapter, [user('Draw an image of a square.'), first.message, user('Edit the image to make it blue.')]);
+  const followUp = mock.requests[1].body.input.findLast((item) => item.role === 'user');
+  assert.ok(followUp.content.some((item) => item.type === 'input_image' && item.image_url === 'data:image/png;base64,' + png.toString('base64')));
+});
+
+test('completed native search followed by a server timeout is not retryable by host policy', async (t) => {
+  const events = [
+    { type: 'response.created', response: { id: 'resp_fixture', status: 'in_progress', output: [] } },
+    { type: 'response.output_item.done', output_index: 0, item: { type: 'web_search_call', id: 'ws_fixture', status: 'completed', action: { type: 'search', query: 'fixture' } } },
+    { type: 'response.failed', response: { id: 'resp_fixture', status: 'failed', error: { code: 'server_error', message: 'upstream timeout' } } },
+  ];
+  const mock = await serverFor(t, [events]);
+  const configured = config(mock.baseURL);
+  delete configured.providers[route].retryPolicy;
+  const { adapter } = createAdapter(ctx, configured);
+  const result = await run(adapter, [user('Search for fixture evidence.')]);
+  const terminal = result.chunks.findLast((chunk) => chunk.type === 'finish').reason.failure;
+  assert.equal(terminal.code, 'TRANSPORT_INTERRUPTED');
+  assert.match(terminal.message, /origin.code=TIMEOUT/);
+  const policy = adapter.providerRetryPolicy(route);
+  assert.equal(policy.retryableCodes.includes('TIMEOUT'), true);
+  assert.equal(policy.retryableCodes.includes(terminal.code), false);
+  assert.equal(mock.requests.length, 1);
+});
+
+test('truncated SSE cannot turn a partial answer into a successful completed response', async (t) => {
+  const incomplete = responseEvents([answerItem]).slice(0, -1);
+  const mock = await serverFor(t, [incomplete]);
+  const { adapter } = createAdapter(ctx, config(mock.baseURL));
+  const result = await run(adapter, [user('Return a fixture answer.')]);
+  assert.equal(result.assembler.finish.kind, 'error');
+  assert.equal(mock.requests.length, 1);
+});
+
+test('mismatched dependency identity blocks activation before route registration', async () => {
+  const metadata = (await import(new URL('./vendor/dependencies.json', entry).href, { with: { type: 'json' } })).default;
+  const packageEntry = metadata.dependencies.packages['@earendil-works/pi-ai'];
+  const original = packageEntry.entryHash;
+  let registered = false;
+  packageEntry.entryHash = 'changed';
+  try {
+    await assert.rejects(apply({ ...ctx, llm: { registerAdapter() { registered = true; } } }, config()), /dependencies changed/);
+    assert.equal(registered, false);
+  } finally { packageEntry.entryHash = original; }
+});
+
+test('mutated generated-adapter identity is rejected before route registration', async () => {
+  const metadata = (await import(new URL('./vendor/dependencies.json', entry).href, { with: { type: 'json' } })).default;
+  const original = metadata.generatedHash;
+  metadata.generatedHash = 'changed';
+  try { assert.throws(() => createAdapter(ctx, config()), /generated adapter changed/); }
+  finally { metadata.generatedHash = original; }
 });
 
 test('auxiliary calls have no search permission and unexpected native images fail loudly', async (t) => {

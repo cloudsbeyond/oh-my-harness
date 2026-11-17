@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Optional DSH adapter for Codex native search and images",
   "scripts": {
-    "build": "node build-adapter.mjs && node build-release.mjs",
-    "test": "node --test *.test.mjs"
+    "build": "node --import ../dsh-native/host-loader.mjs build-adapter.mjs && node build-release.mjs",
+    "test": "node --import ../dsh-native/host-loader.mjs --test *.test.mjs"
   },
   "engines": { "node": ">=24" }
 }

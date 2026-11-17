@@ -1,7 +1,8 @@
 import Ajv from 'ajv';
 import { z } from 'zod';
 import { modelId } from './config.mjs';
-import { chatText, messagesText, prompt, responseText, textResult } from './tools.mjs';
+import { chatText, messagesText, prompt, responseText } from './capabilities/media.mjs';
+import { textResult } from './tools.mjs';
 
 const instructionsInput = z.string().trim().min(1).max(1600).optional();
 const ajv = new Ajv({ strict: true, strictRequired: true, ownProperties: true, addUsedSchema: false });

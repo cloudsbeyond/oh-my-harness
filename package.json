@@ -1,12 +1,56 @@
 {
   "name": "oh-my-harness",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Expose authorized provider capabilities as MCP tools for harnesses and agents",
+  "description": "Provider-neutral capability execution with MCP compatibility and native DSH integration",
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "dsh": "0.2.2-rc.3"
+  },
+  "exports": {
+    ".": "./src/capabilities/runtime.mjs",
+    "./capabilities": "./src/capabilities/runtime.mjs",
+    "./capabilities/contracts": "./src/capabilities/contracts.mjs",
+    "./capabilities/protocol": "./src/capabilities/protocol-provider.mjs",
+    "./capabilities/realtime": "./src/capabilities/realtime.mjs",
+    "./dsh": "./extensions/dsh-capabilities/index.mjs",
+    "./client": "./extensions/dsh-capabilities/client.js",
+    "./locale/*.json": "./extensions/dsh-capabilities/locale/*.json",
+    "./icon": "./extensions/dsh-capabilities/icon.svg",
+    "./dsh/locale/*.json": "./extensions/dsh-capabilities/locale/*.json",
+    "./dsh/icon": "./extensions/dsh-capabilities/icon.svg",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-documentpreview",
+        "@deepseek-ai/dsh-api-workspace-files"
+      ]
+    }
+  },
+  "files": [
+    "src/*.mjs", "src/capabilities/*.mjs", "bin/*.mjs",
+    "config/default.json", "config/providers.example.json", "docs/*.md", "docs/architecture.png", "docs/architecture.json", "cordis.patch.yml",
+    "extensions/dsh-capabilities/*.mjs", "extensions/dsh-capabilities/client.js", "extensions/dsh-capabilities/README.md", "extensions/dsh-capabilities/icon.svg", "extensions/dsh-capabilities/locale/*.json",
+    "extensions/dsh-voice-input/*.mjs", "extensions/dsh-voice-input/client.js", "extensions/dsh-voice-input/package.json", "extensions/dsh-voice-input/cordis.patch.yml", "extensions/dsh-voice-input/README.md", "extensions/dsh-voice-input/LICENSE", "extensions/dsh-voice-input/icon.svg", "extensions/dsh-voice-input/locale/*.json",
+    "extensions/dsh-native/*.mjs", "extensions/dsh-native/README.md",
+    "extensions/dsh-native-codex/*.mjs", "extensions/dsh-native-codex/README.md", "extensions/dsh-native-codex/package.json", "extensions/dsh-native-codex/vendor/LICENSE",
+    "test/*.mjs", "LICENSE"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.3",
+    "@deepseek-ai/schemastery": "~3.19.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": { "optional": true },
+    "@deepseek-ai/dsh-llm": { "optional": true },
+    "@deepseek-ai/schemastery": { "optional": true }
   },
   "scripts": {
     "init": "node bin/oh-my-harness.mjs init",
@@ -14,6 +58,8 @@
     "start": "node bin/oh-my-harness.mjs start",
     "doctor": "node bin/oh-my-harness.mjs doctor",
     "dsh": "node bin/oh-my-harness.mjs dsh",
+    "build:client": "node extensions/dsh-capabilities/build-client.mjs",
+    "verify:dsh-app": "node bin/verify-dsh-app.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {

@@ -5,6 +5,9 @@ import { prepareNativeImages } from './native-images.mjs';
 import { prepareTransport } from './transport.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { expectedHash, sha256, verifyDependencies } from './baseline.mjs';
+import build from './vendor/dependencies.json' with { type: 'json' };
 
 export const name = 'local-codex-native-search';
 export const inject = ['llm', 'credentials'];
@@ -48,6 +51,10 @@ export function validateConfig(raw) {
 }
 
 export function createAdapter(ctx, raw, onDispatch) {
+  verifyDependencies(build.dependencies);
+  if (build.format !== 1 || build.upstreamHash !== expectedHash || sha256(readFileSync(new URL('./vendor/dsh-pi-adapter.mjs', import.meta.url))) !== build.generatedHash) {
+    throw new Error('Native Codex generated adapter changed; rebuild and validate before activation');
+  }
   const { profiles, policy } = validateConfig(raw);
   const adapter = new PiAiAdapter({
     profiles: () => profiles,
@@ -64,7 +71,7 @@ export function createAdapter(ctx, raw, onDispatch) {
       onDispatch?.({ provider: options.provider, model: options.model, purpose: options.purpose ?? 'main', dispatchedAt: new Date().toISOString() });
       const images = prepareNativeImages(options, ctx.get('attachments'), policy.images);
       const search = prepareNativeSearch(options, policy, images);
-      const transport = prepareTransport({ nativeImageRequested: Boolean(images.tool) });
+      const transport = prepareTransport({ nativeImageRequested: Boolean(images.tool), retryableCodes: profiles.get(options.provider)?.retryPolicy?.retryableCodes });
       return {
         fetch: transport.fetch,
         onPayload: search.onPayload,

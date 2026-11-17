@@ -4,13 +4,19 @@
 
 A harness that can call a model still needs to integrate each provider's web search, image, document, and speech interfaces. For example, Codex exposes search actions through Responses, while Kimi returns server search results through Messages. Implementing these integrations in every client repeats the routing, request handling, and result parsing.
 
-oh-my-harness packages capabilities from different sources as reusable MCP tools. In DSH, a conversation can use Kimi for reasoning and call Codex's `web_search` for a lookup with sources. The current release uses accounts you authorize in CLIProxyAPI, including paid agent subscriptions. An independent harness is another upstream source. Connecting it directly requires a dedicated adapter in the Capability Proxy. [Architecture](docs/architecture.md)
+oh-my-harness packages capabilities from different sources behind a provider-neutral execution core. MCP tools are one compatible entry point; native host plugins can call the same core without MCP. [Capability contracts and design decisions](docs/capabilities.md). In DSH, a conversation can use Kimi for reasoning and call Codex's `web_search` for a lookup with sources. The CLIProxyAPI-backed MCP setup uses accounts you authorize in CLIProxyAPI, including paid agent subscriptions. An independent harness is another upstream source. Connecting it directly requires a dedicated adapter in the Capability Proxy. [Architecture](docs/architecture.md)
 
 ![HTTPS ingress routes model and MCP requests separately. The Capability Proxy calls CLIProxyAPI and can be extended with a direct independent harness adapter.](docs/architecture.png)
 
-The solid lines show current routes. The purple dashed line shows the independent harness extension path.
+The solid lines show the CLIProxyAPI/MCP deployment routes. The purple dashed line shows the independent harness extension path.
 
-## Start with DSH
+## Native Desktop DSH bundle
+
+For an existing DSH **0.2.2-rc.3** installation and model API, install the local repository root through Plugin Manager. Configure Host credential references, providers and per-operation defaults in the [native bundle settings](extensions/dsh-capabilities/README.md). Native image, document, video and speech tools call the core directly, without an MCP server or manual file copying. Search registers with DSH's existing web provider menu; HTTP fetching remains separate. The root bundle adds WAV playback in the document-preview tab; the [optional voice bundle](extensions/dsh-voice-input/README.md) transcribes microphone input into the guarded draft without auto-submission. Real microphone permissions and browser playback still need App acceptance; source tests are not visual verification.
+
+The CLIProxyAPI/MCP setup below remains a compatible alternative, not a prerequisite for that native bundle.
+
+## Start with DSH through MCP
 
 Install Node.js 24+ and put the CLIProxyAPI v8.0.51 executable on your PATH as `cli-proxy-api`. [CLIProxyAPI release](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.51)
 
@@ -47,5 +53,7 @@ Point compatible model clients at `/v1` and Streamable HTTP MCP clients at `/mcp
 For a hosted deployment on your own server, terminate HTTPS at one Caddy or NGINX ingress and route `/v1` and `/mcp` to the two loopback services. The routes can share a hostname or use separate hostnames. [Architecture and credentials](docs/architecture.md) · [Deployment](docs/deployment.md) · [Providers and tools](docs/providers.md)
 
 `npm test` uses a local simulated upstream to check routing, credential separation, MCP tools, and the file adapter.
+
+[DSH integration: code, design decisions and verification](docs/dsh-integration.md) · [Codex Native extension and reproducible builds](extensions/dsh-native-codex/README.md)
 
 [MIT License](LICENSE)

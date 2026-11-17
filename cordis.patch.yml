@@ -1,0 +1,13 @@
+# Native Host integration. Provider endpoints and credential references belong
+# to the user's profile configuration, not this portable bundle.
+- insert:
+    - id: oh-my-harness-capabilities
+      name: oh-my-harness/dsh
+      config: {}
+# No-op relative Host entry anchoring the root manifest so the client module
+# loader discovers the root dsh.client declaration (subpath entries are not
+# scanned for client packages).
+- insert:
+    - id: oh-my-harness-client
+      name: ./extensions/dsh-capabilities/host-entry.mjs
+      config: {}

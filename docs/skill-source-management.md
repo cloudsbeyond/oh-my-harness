@@ -8,6 +8,14 @@ The manager connects one reviewed, versioned Skill source to each supported host
 
 The current implementation manages **standalone Skills**, with Codex and Claude Code discovery adapters. Python 3.11+ inspection is portable; lifecycle writes require macOS. Local candidates are supported; remote acquisition, complete plugin/cache management and hosted distribution are deferred. Existing managers, registries and native policies are not adopted automatically.
 
+## Why source identity and host discovery are separate
+
+Copying a Skill to each client solves initial availability but creates independent sources. Updating only one copy makes behavior diverge; replacing them all by name can discard local changes or combine different licenses and versions. One accepted publication unit, with recorded origin and digest, makes the intended source explicit without pretending that a version number alone proves compatibility.
+
+Publication and discovery are distinct operations, but not necessarily distinct moments: a host can directly scan the accepted source directory before any binding record is written. That is why unbinding a manager's record cannot universally mean disabling a Skill. Discovery adapters must preserve each host's actual rules, while tool permission and execution remain with the host.
+
+Updates also span more than a directory replacement. Registry and binding records can fail after bytes have changed. Reviewed digests, retained payloads and phase receipts make that partial state inspectable, and guarded rollback prevents an older operation from overwriting later work. These mechanisms support recoverable asset management; they do not provide isolation from arbitrary processes under the same user.
+
 ## Design invariants
 
 - **One publication unit:** review the complete Skill, resources and license. Do not split an incompatible plugin to make it appear supported.

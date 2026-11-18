@@ -1,6 +1,6 @@
 # Harness integration architecture
 
-The project connects external capabilities and versioned Skill assets to harnesses. The harness owns orchestration, sessions, permissions, triggering and result judgment. DSH is the primary host example; the independent core and MCP delivery are reusable by other clients.
+This reference maps the [project rationale and integration model](../README.md#how-the-integrations-fit-together) to code, deployment and credential owners. The README and linked methodology documents explain the design decisions.
 
 [Architecture diagram](architecture.png) · [Machine-readable responsibilities and deployments](architecture.json)
 
@@ -29,9 +29,7 @@ The stock MCP server uses a single configured model-protocol upstream and key. N
 | Model Proxy | External CLIProxyAPI, or an existing compatible model service | Model inference/catalog APIs; `/v1` in the hosted example |
 | Capability Proxy | oh-my-harness MCP adapter composed with Capability Core | Streamable HTTP `/mcp` with a distinct client key |
 
-Model access and capability access can be purchased, hosted and configured independently. The optional `npm run proxy` convenience command launches an external CLIProxyAPI binary; oh-my-harness does not implement its login or protocol translation. Accounts authorized there, including paid Agent subscriptions, may supply atomic capabilities to a different conversation model. Availability still depends on the account, model and actual route.
-
-The core and native adapters can use other compatible services. The stock hosted configuration is a concrete CLIProxyAPI-backed example, not the definition of the project.
+The optional `npm run proxy` command launches the external CLIProxyAPI executable. Model and capability endpoints have independent configuration and keys; the [README](../README.md#reuse-capabilities-without-fixing-the-conversation-provider) explains how their roles can be combined.
 
 ## Deployment and credentials
 
@@ -49,9 +47,7 @@ The MCP stdio file adapter runs beside its client and confines files to its arti
 
 ## Skill asset integration
 
-The Skill manager maintains one accepted source plus version, digest and operation records, then adapts discovery for supported clients. It does not choose when a Skill runs or grant its scripts and tools permissions. Discovery can precede a manager's bind record when a host directly scans the accepted source root. [Lifecycle and discovery semantics](skill-source-management.md)
-
-The current module handles standalone Skills and Codex/Claude Code views, with lifecycle writes on macOS. It remains in `extensions/skill-source-management/`; directory membership means an optional project integration, not that it is a DSH runtime plugin. Full plugin/cache management, more hosts and hosted asset distribution are not implied.
+`extensions/skill-source-management/` is an optional local CLI, not a DSH runtime plugin. Source, lifecycle and discovery contracts are defined in the [Skill methodology](skill-source-management.md); supported clients, commands and layouts are maintained in its [module README](../extensions/skill-source-management/README.md).
 
 ## Source and instance ownership
 

@@ -34,7 +34,9 @@ A trusted Host plugin can register a provider with `omhCapabilities.register`, a
 
 ## Extension workflow
 
-Follow one method: identify the host interface and existing owner, retain source identity, adapt only the missing boundary, define failure/exit behavior, then verify each layer.
+There are two independent sources of change: what a provider executes and how a harness admits, invokes and presents it. If the same operation already exists, changing its source should not require editing every host UI or MCP schema. If only the host changes, the provider driver should remain reusable. Main-model replay and Skill discovery need their own contracts because they carry different state and authority.
+
+Start by identifying that boundary and its existing owner. Retain source identity, adapt the missing interface, define failure/exit behavior, then verify each layer. The table below turns that reasoning into implementation choices.
 
 | New requirement | First implementation choice | Evidence needed |
 | --- | --- | --- |

@@ -1,10 +1,23 @@
 # Capability execution contract
 
-`CapabilityRuntime` executes an independent operation against a selected provider. It is an in-process API shared by MCP and native host adapters; [architecture and ownership](architecture.md) describes their placement.
+The reusable unit in oh-my-harness is a capability execution, not a tool registration. MCP is one consumer. A native harness plugin or another application can call the same execution layer without creating an MCP server, connecting a client, or translating files through a tool schema.
 
 ## Current implementation
 
-`src/capabilities/runtime.mjs` and `contracts.mjs` own selection, validation and lifecycle. Protocol drivers live beside them; `src/tools.mjs` owns MCP schemas and encoding. Host adapters own filesystem access, credentials and result delivery.
+```text
+MCP schema and Base64 adapter          Native DSH Host plugin
+                 \                    /
+                   CapabilityRuntime
+                operation + input + selection
+                         |
+                registered provider drivers
+                         |
+              Responses / Chat / Messages / audio WS
+```
+
+The core is implemented in `src/capabilities/runtime.mjs` and `contracts.mjs`. Protocol implementations live beside it, not inside MCP callbacks. `src/tools.mjs` contains the compatibility schemas and wire mappings. Existing MCP tool names, media envelopes and stdio artifact confinement remain in place.
+
+This is a local source-level API, not a new remotely deployed HTTP capability endpoint. The existing server still exposes `/mcp`; model requests use the independently authenticated model API. Do not use a capability key as a model key.
 
 ### Operations
 
@@ -89,12 +102,36 @@ Current bounds:
 
 These are validated size and container/header constraints, not an assertion that every upstream provider can interpret every valid file. The core does not transcode. A native voice adapter must explicitly resample a host's recording format rather than relabel it.
 
-### Search evidence
+## Why the boundaries matter
 
-`web.search` URL mode requires recorded page actions and returns attributable evidence, not a raw HTTP body. Use the host's deterministic fetch service when exact response content is required.
+### MCP is a transport, not the capability model
+
+Placing request construction, media encoding and provider result parsing inside tool callbacks is convenient for one MCP client, but makes every native integration depend on that transport. Moving those operations out allows both entry points to share actual behavior and tests. Merely renaming a tool or adding a native-looking wrapper would not establish this boundary.
+
+### A capability is not a provider brand
+
+A conversation can use one model while search or transcription uses another source. A document operation might instead use a local deterministic parser. The host should depend on the operation's meaning and result contract, not on a provider name or response envelope.
+
+This does not justify an all-purpose workflow engine: routing, bounds, lifecycle and error semantics are enough for this layer. Conversation planning and judgment remain with the harness.
+
+### Model-native execution is different from a host tool
+
+A Responses-native search or image tool participates in the main model request and its replay. A separately invoked host capability is an independent operation. They can share protocol helpers, but must not be executed twice for the same request. Native output metadata, history edits and replay degradation require their own tests; working MCP calls do not prove replay correctness.
+
+### Retrieval is not a generated summary
+
+The search operation's URL mode asks a model to open a page and checks recorded page actions. Its result is attributable evidence, not the raw HTTP response body. It must not masquerade as `web_fetch`, invent HTTP status codes or replace deterministic fetching when exact page content is needed.
+
+### Reuse the host before inventing another application
+
+For DSH, attachment storage, credential references, web provider selection, optional speech-to-text, Office conversion/rendering/recalculation and file previews already have owners. A plugin should integrate with those owners. A document model is useful for understanding a file; it is not automatically the right mechanism for writing a spreadsheet or recalculating formulas.
+
+A readonly spreadsheet preview is not a full Excel editor. A provider installed on disk is not necessarily enabled. A tool returning an artifact does not prove that the user can preview or download it. These distinctions are acceptance criteria, not wording details.
 
 ## Verification and migration
 
-`npm test` covers operation contracts, provider selection, cancellation, protocol payloads, media results and MCP/file-adapter compatibility using local fixtures. Existing MCP schemas remain unchanged. Model-native replay, host attachment delivery and Skill lifecycle have separate integration boundaries and checks.
+`npm test` covers the independent registry, switching non-branded providers, model ambiguity, no silent fallback, cancellation, operation validation, protocol payloads, media envelopes, real Node WebSocket authentication and the existing MCP/file-adapter regressions. The network fixtures use local simulated upstreams; no paid provider is called.
 
-[Extension workflow](providers.md#extension-workflow) · [DSH host integration](dsh-integration.md) · [Version-scoped evidence](verification/dsh-0.2.2-rc.3.md)
+Existing MCP clients need no schema migration. The server now composes a capability runtime and maps the same tool calls into it. Native host plugins can consume the runtime directly, with host-resolved credentials and controlled attachments.
+
+The [native DSH bundle](../extensions/dsh-capabilities/README.md) calls this core directly and registers search with the existing Host web service. [Version-scoped integration evidence](verification/dsh-0.2.2-rc.3.md) records actual provider and attachment checks separately from source fixtures and outstanding UI acceptance. The main-model Codex Native adapter is a distinct integration; Skill source management is independent of both request paths. See the [architecture](architecture.md) for ownership and the [extension workflow](providers.md#extension-workflow) before adding a driver or host adapter.

@@ -2,6 +2,12 @@
 
 These integration rules target DSH **0.2.2-rc.3**. The [architecture](architecture.md) defines project responsibilities; the [capability contract](capabilities.md) and [Codex model-native adapter](../extensions/dsh-native-codex/README.md) own their execution semantics.
 
+## Why host adaptation needs its own boundary
+
+A provider returning a result is only half the integration. The host must decide whether input files may leave the session, store outputs as durable attachments, make them available on follow-up turns, and dispose registrations and active work safely. A tool name or thin HTTP wrapper cannot provide those properties by itself.
+
+Independent capabilities and main-model native events reach that host through different paths. The former runs an explicit operation; the latter is already part of the model request and changes citations, ordering and replay. Treating a native event as another executable function can duplicate work, while flattening it into text loses information needed by the next turn. The host adapter therefore reuses existing services without taking over the conversation runtime.
+
 ## Reuse the host's services
 
 | Concern | Existing owner | Integration boundary |
@@ -39,9 +45,15 @@ Remove registrations when the plugin unloads, cancel in-flight work and await co
 
 Treat Cordis Fibers as their actual awaitable/disposable type, and mount a Remote's default contribution rather than its module namespace. Source tests cover these interface boundaries; real browser playback and microphone permissions require separate acceptance.
 
-## Update a working installation
+## Reason about compatibility and execution state
 
-Check composition, activation, credential resolution, dispatch and delivery at their respective owners. A missing environment variable alone does not invalidate a working Host credential reference.
+Configuration records intent. Activation, credential resolution, actual dispatch and result delivery are separate states with different owners. A plugin can be declared but unavailable; an environment variable can be absent while the Host credential service correctly resolves its reference. Check the responsible service before replacing a working route.
+
+Dependency identity also matters beyond version labels. Equal DSH adapter bytes can execute with different pi-ai dependencies and request-header dialects. A build input path alone does not control ESM resolution. The native extension verifies the resolved dependency identity and includes it in a reproducible release so a later upgrade fails visibly rather than silently changing replay behavior. Exact locks and build commands belong to the [Codex adapter instructions](../extensions/dsh-native-codex/README.md).
+
+Retry decisions follow execution semantics. A refusal before output differs from interruption after visible text or paid native work: replaying the latter may duplicate effects or charges. Keep those failures distinct, preserve safe diagnostic identifiers, and let the host own its bounded retry policy. Local function dispatch, model-native events and cancellation must be tested together.
+
+## Update a working installation
 
 Compare deployed and versioned source before rebuilding; retain later fixes and private rollback state. Use the [reviewed SDK identity, build instructions and retry rules](../extensions/dsh-native-codex/README.md). A stale fingerprint calls for review, not patching the installed App or installing a global resolver hook. Apply only owned profile changes so unrelated model/provider edits survive.
 

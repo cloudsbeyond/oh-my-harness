@@ -40,7 +40,9 @@
     "extensions/dsh-voice-input/*.mjs", "extensions/dsh-voice-input/client.js", "extensions/dsh-voice-input/package.json", "extensions/dsh-voice-input/cordis.patch.yml", "extensions/dsh-voice-input/README.md", "extensions/dsh-voice-input/LICENSE", "extensions/dsh-voice-input/icon.svg", "extensions/dsh-voice-input/locale/*.json",
     "extensions/dsh-native/*.mjs", "extensions/dsh-native/README.md",
     "extensions/dsh-native-codex/*.mjs", "extensions/dsh-native-codex/README.md", "extensions/dsh-native-codex/package.json", "extensions/dsh-native-codex/vendor/LICENSE",
-    "test/*.mjs", "LICENSE"
+    "test/*.mjs", "LICENSE",
+    "extensions/skill-source-management/manage.py", "extensions/skill-source-management/skill_source_management/*.py",
+    "extensions/skill-source-management/tests/*.py", "extensions/skill-source-management/README*.md"
   ],
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
@@ -60,7 +62,9 @@
     "dsh": "node bin/oh-my-harness.mjs dsh",
     "build:client": "node extensions/dsh-capabilities/build-client.mjs",
     "verify:dsh-app": "node bin/verify-dsh-app.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "skills": "python3 extensions/skill-source-management/manage.py",
+    "test:skills": "python3 -B -m unittest discover -s extensions/skill-source-management/tests -v"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2.4.0",

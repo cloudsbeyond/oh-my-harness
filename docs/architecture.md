@@ -34,3 +34,9 @@ The DSH MCP file adapter runs on the DSH machine. It reads inputs from `gateway-
 An authorized paid agent account can supply an individual tool to a workflow whose conversation uses another provider. Capability access depends on the account, the selected model and the CLIProxyAPI route. Configuration selects which tools to advertise. Model discovery and MCP discovery can be checked separately, then an actual tool call checks the upstream route. [Deployment and checks](deployment.md)
 
 Generated keys, OAuth files, runtime configuration, and DSH profiles and workspaces belong under the local state directory by default. The repository allowlist includes source, documentation, and example configuration. Keep deployment overrides and tool outputs in runtime state or another private directory.
+
+## Optional client-side Skill source management
+
+The [local Skill source manager](../extensions/skill-source-management/README.md) manages local instruction/resource packages, not provider execution. Its initial implementation supports standalone packages and Codex/Claude Code views on macOS. Accepted sources live outside the project checkout; consuming agents own discovery, invocation and tool authority. [Broader design and deferred adapters](skill-source-management.md)
+
+The optional Python CLI is not imported by the capability execution core, MCP or native DSH plugins. It adds no endpoint or provider capability enum and does not change `/v1`, `/mcp`, the [runtime diagram](architecture.json), credentials or DSH session ownership. Complete plugin adapters, hosted distribution and OS write isolation remain deferred.

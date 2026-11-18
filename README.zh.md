@@ -56,4 +56,8 @@ npm run dsh
 
 [DSH 集成：代码、设计取舍与验证](docs/dsh-integration.md) · [Codex Native 扩展与可复现构建](extensions/dsh-native-codex/README.md)
 
+## 可选的本地 Skill 管理
+
+[本地 Skill 源管理器](extensions/skill-source-management/README.zh.md)让 Codex 和 Claude Code 共享已审查的独立 Skill。正式源留在所选 Home 的 `.agents/skills`，不放在这个开源仓库中。初版生命周期操作需要 macOS 和 Python 3.11+，独立于能力执行核心、MCP 和原生 DSH 插件。[设计与后置范围](docs/skill-source-management.zh.md)
+
 [MIT License](LICENSE)

@@ -56,4 +56,8 @@ For a hosted deployment on your own server, terminate HTTPS at one Caddy or NGIN
 
 [DSH integration: code, design decisions and verification](docs/dsh-integration.md) · [Codex Native extension and reproducible builds](extensions/dsh-native-codex/README.md)
 
+## Optional local Skill management
+
+The [local Skill source manager](extensions/skill-source-management/README.md) shares reviewed standalone Skills between Codex and Claude Code. Sources stay in the selected Home's `.agents/skills`, outside this repository. The initial lifecycle implementation requires macOS and Python 3.11+. It is independent of the provider-neutral capability core, MCP and native DSH plugins. [Design and deferred scope](docs/skill-source-management.md)
+
 [MIT License](LICENSE)

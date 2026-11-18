@@ -56,3 +56,18 @@
 !/extensions/dsh-voice-input/icon.svg
 !/extensions/dsh-voice-input/locale/
 !/extensions/dsh-voice-input/locale/*.json
+
+# Optional local Skill source manager. Runtime/staging/receipts stay outside Git.
+!/extensions/skill-source-management/
+!/extensions/skill-source-management/README.md
+!/extensions/skill-source-management/README.zh.md
+!/extensions/skill-source-management/manage.py
+!/extensions/skill-source-management/skill_source_management/
+!/extensions/skill-source-management/skill_source_management/*.py
+!/extensions/skill-source-management/tests/
+!/extensions/skill-source-management/tests/*.py
+
+# Only the reviewed Skill CI workflow is included.
+!/.github/
+!/.github/workflows/
+!/.github/workflows/skill-source-management.yml

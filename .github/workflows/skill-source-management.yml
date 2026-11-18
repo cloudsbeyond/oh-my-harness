@@ -1,0 +1,61 @@
+name: Skill source management
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/skill-source-management.yml'
+      - 'extensions/skill-source-management/**'
+      - 'docs/skill-source-management*.md'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.gitignore'
+  pull_request:
+    paths:
+      - '.github/workflows/skill-source-management.yml'
+      - 'extensions/skill-source-management/**'
+      - 'docs/skill-source-management*.md'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.gitignore'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04, windows-2025]
+        python: ['3.11', '3.14']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run isolated source and lifecycle tests
+        run: python -B -m unittest discover -s extensions/skill-source-management/tests -v
+
+  node-regression:
+    name: Node 24 regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install locked public dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify existing capability runtime
+        run: npm test

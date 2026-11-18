@@ -2,23 +2,33 @@
 
 [简体中文](README.zh.md)
 
-A harness that can call a model still needs to integrate each provider's web search, image, document, and speech interfaces. For example, Codex exposes search actions through Responses, while Kimi returns server search results through Messages. Implementing these integrations in every client repeats the routing, request handling, and result parsing.
+**Integrations and adapters for harnesses: reuse authorized capabilities and versioned Skills while the host keeps orchestration, sessions and permissions.**
 
-oh-my-harness packages capabilities from different sources behind a provider-neutral execution core. MCP tools are one compatible entry point; native host plugins can call the same core without MCP. [Capability contracts and design decisions](docs/capabilities.md). In DSH, a conversation can use Kimi for reasoning and call Codex's `web_search` for a lookup with sources. The CLIProxyAPI-backed MCP setup uses accounts you authorize in CLIProxyAPI, including paid agent subscriptions. An independent harness is another upstream source. Connecting it directly requires a dedicated adapter in the Capability Proxy. [Architecture](docs/architecture.md)
+Model APIs, paid Agent capabilities and Skill assets each meet different host interfaces. oh-my-harness maintains those adapters so every harness does not need its own execution wrappers and drifting source copies. DSH is the primary integration; other harnesses can use MCP, core APIs or supported discovery adapters.
 
-![HTTPS ingress routes model and MCP requests separately. The Capability Proxy calls CLIProxyAPI and can be extended with a direct independent harness adapter.](docs/architecture.png)
+![Harness-owned orchestration connects to independent capabilities, model-native semantics and Skill discovery.](docs/architecture.png)
 
-The solid lines show the CLIProxyAPI/MCP deployment routes. The purple dashed line shows the independent harness extension path.
+[Architecture and responsibilities](docs/architecture.md) · [Hosted HTTPS deployment](docs/deployment.md)
 
-## Native Desktop DSH bundle
+## Choose an integration
 
-For an existing DSH **0.2.2-rc.3** installation and model API, install the local repository root through Plugin Manager. Configure Host credential references, providers and per-operation defaults in the [native bundle settings](extensions/dsh-capabilities/README.md). Native image, document, video and speech tools call the core directly, without an MCP server or manual file copying. Search registers with DSH's existing web provider menu; HTTP fetching remains separate. The root bundle adds WAV playback in the document-preview tab; the [optional voice bundle](extensions/dsh-voice-input/README.md) transcribes microphone input into the guarded draft without auto-submission. Real microphone permissions and browser playback still need App acceptance; source tests are not visual verification.
+| Need | Entry point |
+| --- | --- |
+| Call search, image, document, video or speech operations independently | [MCP](#start-with-dsh-through-mcp) or [native DSH bundle](extensions/dsh-capabilities/README.md) using the same core code |
+| Preserve search/image events and replay inside a GPT conversation | [DSH Codex model-native adapter](extensions/dsh-native-codex/README.md) |
+| Share reviewed, versioned Skills across local agents | [Skill Source Manager](extensions/skill-source-management/README.md), with Codex/Claude Code adapters; lifecycle writes require macOS and Python 3.11+ |
 
-The CLIProxyAPI/MCP setup below remains a compatible alternative, not a prerequisite for that native bundle.
+Use these independently. Skills remain host-discovered assets; model-native work stays in the main request and is not executed again as a tool. Provider access and operation support must be verified for the authorized account and route.
+
+## Existing DSH installation: native capabilities
+
+For **DSH 0.2.2-rc.3**, run `npm ci`, install this local repository root through Plugin Manager, then configure [Host credential references and operation defaults](extensions/dsh-capabilities/README.md). Existing compatible APIs can be used directly; MCP and CLIProxyAPI are optional.
+
+A Kimi conversation can use a separately configured Codex provider for search or images. Installing this capability bundle does not migrate the main-model route. [Host integration](docs/dsh-integration.md) · [Verification and UI limits](docs/verification/dsh-0.2.2-rc.3.md)
 
 ## Start with DSH through MCP
 
-Install Node.js 24+ and put the CLIProxyAPI v8.0.51 executable on your PATH as `cli-proxy-api`. [CLIProxyAPI release](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.51)
+Install Node.js 24+ and the [CLIProxyAPI v8.0.51 executable](https://github.com/router-for-me/CLIProxyAPI/releases/tag/v8.0.51) on PATH as `cli-proxy-api`. This example reuses accounts authorized in CLIProxyAPI, including paid Agent subscriptions, and launches a separate DSH Web profile.
 
 ```sh
 npm ci
@@ -27,9 +37,7 @@ npm run proxy -- -codex-device-login
 npm run proxy -- -kimi-login
 ```
 
-For a single account, initialize with `npm run init -- --provider codex` or `--provider kimi` and run the matching login command.
-
-Run `npm run proxy` and `npm start` in separate terminals. They start the Model Proxy and Capability Proxy respectively. In a third terminal, check both endpoints and open DSH.
+For one account, initialize with `--provider codex` or `--provider kimi` and run only its login command. Start `npm run proxy` and `npm start` in separate terminals, then:
 
 ```sh
 npm run doctor -- --models
@@ -37,27 +45,16 @@ npm run doctor
 npm run dsh
 ```
 
-`npm run dsh` opens a separate DSH Web profile and workspace. Try `mcp__gateway__web_search` in a session, for example by asking for MCP transport options with sources. If a model ID differs from what your account advertises, update `.state/config.json` using the output from `doctor -- --models`. A tool call verifies that the upstream can perform the capability.
+Try `mcp__gateway__web_search` with a question requiring sources. Match model IDs/limits in `.state/config.json` to the upstream and verify an actual result. Model API and MCP use separate keys; tool-only clients need only MCP. [Connect other clients or an existing model service](docs/deployment.md)
 
-The quickstart uses MCP for tools. For native search citations and generated images in a GPT conversation, install the optional Codex adapter on the DSH host, enable it in the Web profile, and select a GPT model from the provider it registers. [Optional DSH Codex adapter](extensions/dsh-native-codex/README.md)
+## Extend and verify
 
-| Local endpoint | URL | Key file |
-| --- | --- | --- |
-| Model Proxy | `http://127.0.0.1:8317/v1` | `.state/model.key` |
-| Capability Proxy | `http://127.0.0.1:8318/mcp` | `.state/gateway.key` |
+Follow the [extension workflow](docs/providers.md#extension-workflow): identify the host owner, preserve source identity, adapt the missing boundary and verify discovery, execution and delivery separately.
 
-## Use another harness or agent
+```sh
+npm test
+npm run test:skills
+npm run verify:package
+```
 
-Point compatible model clients at `/v1` and Streamable HTTP MCP clients at `/mcp`. Use each endpoint's key. A tool client needs only the MCP URL and capability key. DSH's local file adapter converts workspace files into MCP inputs. Other clients can pass Base64 as defined by the tool schemas.
-
-For a hosted deployment on your own server, terminate HTTPS at one Caddy or NGINX ingress and route `/v1` and `/mcp` to the two loopback services. The routes can share a hostname or use separate hostnames. [Architecture and credentials](docs/architecture.md) · [Deployment](docs/deployment.md) · [Providers and tools](docs/providers.md)
-
-`npm test` uses a local simulated upstream to check routing, credential separation, MCP tools, and the file adapter.
-
-[DSH integration: code, design decisions and verification](docs/dsh-integration.md) · [Codex Native extension and reproducible builds](extensions/dsh-native-codex/README.md)
-
-## Optional local Skill management
-
-The [local Skill source manager](extensions/skill-source-management/README.md) shares reviewed standalone Skills between Codex and Claude Code. Sources stay in the selected Home's `.agents/skills`, outside this repository. The initial lifecycle implementation requires macOS and Python 3.11+. It is independent of the provider-neutral capability core, MCP and native DSH plugins. [Design and deferred scope](docs/skill-source-management.md)
-
-[MIT License](LICENSE)
+[Core contracts](docs/capabilities.md) · [Skill design](docs/skill-source-management.md) · [Version-scoped acceptance](docs/verification/dsh-0.2.2-rc.3.md). Credentials, instance configuration, personal assets and runtime state stay outside public source. [MIT License](LICENSE)

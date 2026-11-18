@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Native provider capabilities",
-    "description": "Direct provider tools for images, document understanding, short video and WAV speech. Reuses DSH credentials, workspace policy and attachments; no MCP hop. Configure providers and per-operation defaults before use. Use existing Office tools for editing/recalculation and present for delivery cards. Selected inputs are sent to the configured provider. Disabling removes these tools/search provider, not saved artifacts. Microphone input and inline audio preview are separate integrations, not included in this initial Host bundle."
+    "description": "Search, image, document, video and WAV capabilities using configured providers and Host credentials. Selected inputs are sent to those providers. Includes WAV playback in the document-preview tab; microphone input requires the separate voice-input bundle. Real playback and microphone acceptance remain unverified. Disabling removes tools/search registration, not saved artifacts."
   }
 }

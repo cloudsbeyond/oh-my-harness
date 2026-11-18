@@ -1,4 +1,4 @@
-# Optional local Skill source manager
+# Skill asset management and host discovery
 
 [简体中文](README.zh.md) · [Design and boundaries](../../docs/skill-source-management.md)
 

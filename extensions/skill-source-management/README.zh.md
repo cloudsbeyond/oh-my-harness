@@ -1,4 +1,4 @@
-# 可选的本地 Skill 源管理器
+# Skill 资产管理与宿主接入
 
 [English](README.md) · [设计与边界](../../docs/skill-source-management.zh.md)
 

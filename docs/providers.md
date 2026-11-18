@@ -1,34 +1,58 @@
-# Provider configuration
+# Providers and harness extension workflow
 
-The registry connects a model ID from CLIProxyAPI to the capabilities oh-my-harness should expose. Enable a capability when your authorized account, model and CLIProxyAPI route support the corresponding request. The registry also selects the models offered by the DSH integration.
+Choose the integration boundary before editing configuration. There are two existing provider configuration formats: the stock MCP server's shared-upstream catalog and the DSH native bundle's per-provider settings. Both feed Capability Core; neither configures Skill discovery or the main-model native adapter.
 
-1. Configure the provider in CLIProxyAPI and check its authenticated `/v1/models`.
-2. Add a provider ID under `providers`. Set `protocol` to `responses`, `chat`, or `messages` based on its API route. Add one or more advertised model IDs with their context window and output limits. Use CLIProxyAPI aliases for models that would otherwise have the same ID.
-3. Enable the capabilities you intend to use and set `defaults` for each enabled capability. The `text` capability makes a provider available to DSH for conversation. Tools can select a configured `provider` and, where applicable, a `model`.
-4. Restart the Capability Proxy and relaunch DSH to apply changes.
+## Stock MCP catalog
 
-`npm run init` copies the [Codex and Kimi defaults](../config/default.json) to `.state/config.json`. Set `OH_MY_HARNESS_CONFIG` to load another complete config. The [multi-provider example](../config/providers.example.json) is an independent config with illustrative model IDs and limits. Replace them with the IDs and limits for your upstream.
+The [default config](../config/default.json) connects declared model IDs and capability flags to one protocol-compatible upstream. CLIProxyAPI is the included setup; another upstream must implement each enabled request. Model discovery supplies IDs, not proof that the account supports search, media or every advertised modality.
 
-For a DSH conversation that uses Kimi and a search tool that uses Codex, set `defaults.text` to `kimi` and `defaults.search` to `codex`. Both accounts need the corresponding access in CLIProxyAPI.
+1. Configure and authenticate the upstream; inspect `/v1/models` and test the intended operation.
+2. Add a `providers` entry using `responses`, `chat` or `messages`, declared models, capacities and capability flags. The stock catalog requires globally unique model IDs/aliases; use upstream aliases if needed.
+3. Set defaults by capability (`search`, `vision`, `images`, etc.). `text` also makes the provider available to the example DSH Web launcher. `defaults.text: kimi` and `defaults.search: codex` illustrates separate reasoning and search choices.
+4. Restart this Capability Proxy when its config changes. Relaunch only the generated DSH profile if its model settings changed; no blanket restart of other installations is required.
 
-| Capability | Tools and inputs |
-| --- | --- |
-| `search` | `web_search` takes a `query` and optional `url` and `find`. Set provider `search` to `responses` or `messages`. Responses checks for an exact page action when given a URL. Messages uses URL and find as search hints. |
-| `vision` | `inspect_image` takes `image_base64`, an optional `second_image_base64`, and `question`. PNG, JPEG, or WebP, up to 5 MiB total. |
-| `documents` | `inspect_document` takes `filename`, `file_base64`, `question`, and optional PDF `detail`. The Responses adapter accepts PDF, DOCX, XLSX, PPTX text, and UTF-8 CSV. |
-| `video` | `inspect_video` takes `filename`, `file_base64`, and `question`. The Chat adapter answers from visible content in a short MP4. |
-| `images` | `generate_image` takes `prompt`. `edit_image` also takes `image_base64`. Set `imageModel`. The Responses adapter uses its image tool and the other protocols use the Images API. |
-| `audio` | `synthesize_speech` takes `text`. `transcribe_audio` takes `audio_base64`. `ask_audio` adds `question`. Set `realtimeModel` and `transcriptionModel`. Input audio uses 24 kHz mono PCM16 WAV, at least 100 ms and at most 2 MiB of PCM. |
+`npm run init` writes `.state/config.json`; `OH_MY_HARNESS_CONFIG` selects a complete replacement config. [Multi-provider example](../config/providers.example.json) contains illustrative IDs and limits, not an account capability promise. Keep upstream authorization in CLIProxyAPI or the configured service, and client keys in private runtime state. [Deployment](deployment.md)
 
-Document and video inputs are limited to 5 MiB. DSH passes `file` and, for image comparison, `second_file` through the local adapter. Direct MCP clients use the Base64 inputs above. `list_providers` shows the configured providers, model IDs and enabled tool capabilities. Test capabilities on your upstream with representative inputs.
+| Catalog flag | MCP tools | Core operations |
+| --- | --- | --- |
+| `search` | `web_search` | `web.search` |
+| `vision` | `inspect_image` | `image.inspect` |
+| `documents` | `inspect_document` | `document.inspect` |
+| `video` | `inspect_video` | `video.inspect` |
+| `images` | `generate_image`, `edit_image` | `image.generate`, `image.edit` |
+| `audio` | `synthesize_speech`, `transcribe_audio`, `ask_audio` | `speech.synthesize`, `speech.transcribe`, `audio.inspect` |
 
-Set `modelTools: true` in an operator config to opt in to five stateless MCP tools for existing workflows. `list_models` and `get_model` query upstream metadata. `generate_text` uses the selected model's configured protocol. Add `modelToolAliases` to a text provider for aliases used by MCP workflows that do not need a DSH conversation entry. `generate_structured` validates strict JSON Schema output from a compatible Responses or Chat model. `count_input_tokens` requires a provider `tokenSource` of `proxy_estimate` or `provider_count` and an upstream that implements `/v1/messages/count_tokens`. Use the source field to interpret the result. Conversation streaming still uses the separate model API.
+MCP accepts Base64 media; the stdio adapter exposes file arguments inside its configured artifact directory. [Schemas](../src/tools.mjs) and [core contracts/limits](capabilities.md#operations) define the supported inputs. `list_providers` reports configuration, not tested upstream health. Search result sources are checked against native actions/results; model-assisted URL reading does not replace exact HTTP fetching.
 
-Provider API keys and OAuth login live in CLIProxyAPI. Add the relevant key group to its private configuration or use its login command. [CLIProxyAPI provider and key examples](https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.51/config.example.yaml)
+`modelTools: true` optionally retains existing stateless MCP model tools: `list_models`, `get_model`, `generate_text`, `generate_structured`, and `count_input_tokens`. Model-tool aliases and token-source configuration are explicit compatibility features. They do not change capability routing or replace the separate conversation model API.
 
-## Extend capabilities
+## Native host providers
 
-1. **Choose the source and contract.** Identify one tool the client needs and confirm the authorized upstream can perform it. Reuse the existing MCP name and schema when the capability already exists. Capture a small sanitized request and response as fixtures.
-2. **Choose the adapter.** For a compatible provider behind CLIProxyAPI, try a provider registry entry first. For a new provider protocol or tool, add an adapter in [the tool implementation](../src/tools.mjs) or [the Realtime implementation](../src/realtime.mjs). For an independent harness, implement a direct MCP or HTTP adapter using its own URL and credential configuration. The existing `upstream` setting remains the CLIProxyAPI route.
-3. **Keep the client contract stable.** Validate inputs, media size, and upstream result shape. Map errors and timeouts to MCP errors. Update [the stdio adapter](../src/stdio.mjs) when a tool needs local file inputs or outputs. Keep credentials in runtime state.
-4. **Verify before enabling.** Test routing and result handling with sanitized fixtures in [the gateway tests](../test/gateway.test.mjs). Run `npm test`, check discovery with `npm run doctor`, then invoke the tool against your authorized upstream. Document the required access and select a default only after the route works.
+The [DSH native bundle](../extensions/dsh-capabilities/README.md) uses operation defaults such as `image.inspect` and provider-local model IDs. Each provider can have its own endpoint and Host credential reference. Equal model IDs across providers are allowed, but an ambiguous bare model requires an explicit provider. These are native/core semantics; they do not relax the legacy MCP catalog's global alias rule.
+
+A trusted Host plugin can register a provider with `omhCapabilities.register`, and a standalone consumer can use `CapabilityRuntime.register`. No model is required for a local deterministic provider. The core contract is available through the package's `./capabilities` export. Credential resolution, filesystem admission and UI delivery stay in the caller's adapter. [Independent provider example](capabilities.md#independent-providers)
+
+## Extension workflow
+
+Follow one method: identify the host interface and existing owner, retain source identity, adapt only the missing boundary, define failure/exit behavior, then verify each layer.
+
+| New requirement | First implementation choice | Evidence needed |
+| --- | --- | --- |
+| Another endpoint supporting an existing operation/protocol | Configuration, not new tool code | Actual authorized request and expected output |
+| A new provider or independent harness for an existing operation | Driver implementing `execute(operation, input, options)` and registration | Sanitized fixtures, cancellation, result validation and source identity |
+| A new atomic operation | Define contract in `src/capabilities/contracts.mjs`, then driver and affected delivery mappings | Inputs/limits, typed result, error semantics, MCP/native delivery |
+| An operation exposed in another harness | Host adapter using that host's credentials, files and lifecycle | Host discovery, authorized invocation and usable result delivery |
+| Search/image events within the main model stream | Model-native extension | SSE ordering, citations/media, function calls, second-turn replay and safe interruption |
+| Versioned Skills in another client | Discovery/lifecycle adapter in Skill Source Manager | Reviewed source, guarded update/rollback, new-process discovery and separate invocation checks |
+
+For a new operation, update the core contract and test it first; put protocol work in `src/capabilities/`, MCP encoding in `src/tools.mjs`, and host projection in the corresponding extension. Do not put provider execution back inside MCP callbacks. Preserve public tool schemas unless a separately reviewed contract change is required.
+
+An independent harness adapter must map a bounded operation to that service's real HTTP/MCP contract and credential owner. The core registration interface exists; the stock server does not currently load arbitrary external adapter modules from JSON. Do not claim that a sample registration or config entry provides a ready-made remote connector.
+
+Keep conversation planning, memory, permissions and final judgment with the harness. Reuse existing host search, file, Office and speech services before adding UI or another framework. A new feature belongs here when it closes a concrete harness integration gap with an owned adapter and testable boundary—not merely because it is Agent-related.
+
+## Verification and enablement
+
+Use local fixtures for the core/driver, then test affected MCP/host mappings. Verify the actual distribution with `npm run verify:package`; run `npm test` and relevant module suites. [DSH method and baseline tests](dsh-integration.md) · [Skill asset verification](skill-source-management.md#acceptance-and-implementation-sequence)
+
+Keep evidence separate: source/config accepted → host or tool discovered → authorized operation executed → result delivered → repeat/update/rollback behavior verified. A successful fixture or `/models` response does not prove a paid upstream or rendered UI works. Enable only the tested configuration, retain a rollback path, and report any blocked acceptance explicitly.

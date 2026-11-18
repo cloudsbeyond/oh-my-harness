@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer, get } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -287,6 +287,31 @@ test('DSH profile uses the origin for Messages and keeps raw client keys out of 
   const mcp = entries.find((item) => item.insert).insert[0].config;
   assert.equal(mcp.env.OH_MY_HARNESS_MCP_URL, 'https://tools.example.com/mcp');
   assert.equal(mcp.env.OH_MY_HARNESS_KEY_FILE, path.join(state, 'gateway.key'));
+});
+
+test('default DSH launcher uses the declared host baseline and isolated profile', async (t) => {
+  const state = await mkdtemp(path.join(tmpdir(), 'omh-launcher-'));
+  t.after(() => rm(state, { recursive: true, force: true }));
+  const bin = path.join(state, 'bin'), receipt = path.join(state, 'launch.json');
+  await mkdir(bin);
+  // Capture the real child-process boundary without npm fetching or starting a host.
+  await writeFile(path.join(bin, 'npm'), '#!' + process.execPath + '\n' +
+    `require('node:fs').writeFileSync(process.env.LAUNCH_RECEIPT, JSON.stringify({
+      args: process.argv.slice(2), home: process.env.DSH_HOME, cwd: process.cwd()
+    }));`, { mode: 0o700 });
+  await writeFile(path.join(state, 'model.key'), upstreamKey, { mode: 0o600 });
+  await writeFile(path.join(state, 'gateway.key'), downstreamKey, { mode: 0o600 });
+  const env = childEnvironment({ PATH: bin + path.delimiter + process.env.PATH,
+    OH_MY_HARNESS_STATE_DIR: state, LAUNCH_RECEIPT: receipt });
+  await promisify(execFile)(process.execPath, ['bin/oh-my-harness.mjs', 'dsh', '--dump-config'], { env });
+  const observed = JSON.parse(await readFile(receipt, 'utf8'));
+  const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.deepEqual(observed.args, ['exec', '--yes', '--package', '@deepseek-ai/dsh@' + manifest.engines.dsh,
+    '--', 'dsh', 'web', '--dump-config']);
+  assert.equal(observed.home, path.join(state, 'dsh'));
+  assert.equal(observed.cwd, await realpath(path.join(state, 'workspace')));
+  const profile = JSON.parse(await readFile(path.join(observed.home, 'profiles/web/cordis.patch.yml'), 'utf8'));
+  assert.ok(profile.some(entry => entry.id === 'llm-pi-ai'));
 });
 
 test('init for an external model proxy creates only local capability credentials', async (t) => {

@@ -11,7 +11,7 @@ import {
 } from '../src/config.mjs';
 import { gatewayServer } from '../src/http.mjs';
 
-const dshVersion = '0.2.1-rc.5';
+const dshVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).engines.dsh;
 const stateConfig = path.join(stateDir, 'config.json');
 const proxyConfig = path.resolve(process.env.CLIPROXY_CONFIG ?? path.join(stateDir, 'cliproxyapi.yaml'));
 const workspace = path.resolve(setting('WORKSPACE') ?? path.join(stateDir, 'workspace'));

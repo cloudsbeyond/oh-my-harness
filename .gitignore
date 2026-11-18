@@ -15,11 +15,14 @@
 !/bin/
 !/bin/oh-my-harness.mjs
 !/bin/verify-dsh-app.mjs
+!/bin/verify-package.mjs
 !/config/
 !/config/default.json
 !/config/providers.example.json
 !/docs/
 !/docs/*.md
+!/docs/verification/
+!/docs/verification/*.md
 !/docs/architecture.json
 !/docs/architecture.png
 !/deploy/
@@ -27,6 +30,7 @@
 !/deploy/nginx.conf.example
 !/test/
 !/test/*.test.mjs
+!/test/package-verification.test.mjs
 !/test/dsh-host-fixture.mjs
 !/extensions/
 !/extensions/dsh-native/
@@ -67,7 +71,8 @@
 !/extensions/skill-source-management/tests/
 !/extensions/skill-source-management/tests/*.py
 
-# Only the reviewed Skill CI workflow is included.
+# Only the reviewed CI workflows are included.
 !/.github/
 !/.github/workflows/
 !/.github/workflows/skill-source-management.yml
+!/.github/workflows/capabilities.yml

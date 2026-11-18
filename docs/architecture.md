@@ -1,42 +1,60 @@
-# Architecture
+# Harness integration architecture
 
-oh-my-harness exposes upstream capabilities as Streamable HTTP MCP tools for any compatible harness or agent. The DSH quickstart is a client example. [Architecture diagram](architecture.png) · [Machine-readable architecture](architecture.json)
+The project connects external capabilities and versioned Skill assets to harnesses. The harness owns orchestration, sessions, permissions, triggering and result judgment. DSH is the primary host example; the independent core and MCP delivery are reusable by other clients.
 
-| Component | Responsibility | Entry point |
+[Architecture diagram](architecture.png) · [Machine-readable responsibilities and deployments](architecture.json)
+
+## Three integration boundaries
+
+| Integration | Implementation | Responsibility |
 | --- | --- | --- |
-| CLIProxyAPI | Provider login, model catalog, protocol translation, and upstream routing | `npm run proxy` launches the external CLIProxyAPI executable. Clients use its `/v1` API. |
-| Capability Proxy | Tool discovery, input validation, provider-specific calls, and MCP results | `npm start` starts oh-my-harness. Clients use its `/mcp` endpoint. |
-| DSH client integration | Client configuration and MCP file conversion for DSH sessions | `npm run dsh` starts DSH Web and configures both endpoints. |
-| HTTPS ingress | TLS and public routing in a hosted deployment | Caddy or NGINX routes model and MCP traffic to their respective loopback listeners on the gateway host. |
+| Independent capability execution | `src/capabilities/`, MCP adapter, `extensions/dsh-capabilities/` | Execute one operation against an explicitly selected provider; deliver typed evidence or original media |
+| Main-model native semantics | `extensions/dsh-native-codex/` and shared release utilities | Adapt the primary model stream, citations, images, replay and interruption without executing provider-native work twice |
+| Skill assets and host discovery | `extensions/skill-source-management/` | Maintain reviewed sources, version evidence, publication, update, rollback and client discovery bindings |
 
-DSH sends conversation requests to CLIProxyAPI and tool requests to the Capability Proxy. The two paths can use different sources. For example, a conversation can use Kimi while its search tool uses Codex.
+These modules share integration principles, not a compulsory runtime. The Skill manager is an optional local command, not a service on every request. The model-native adapter is not another transport into Capability Core. A host may use any of the three independently.
 
-The optional native extension is installed on the DSH host and loaded by its Web profile. It registers an adapter for the selected Codex provider, sends Responses requests through the configured Model Proxy, and turns provider events into DSH citations, replay state, and image attachments. The diagram shows the standard MCP integration. [DSH native extensions](../extensions/dsh-native/README.md)
+## Capability execution and delivery
 
-| Capability upstream | Route | Status |
+MCP maps schemas and Base64 envelopes to the core. The native DSH adapter maps admitted host files and credential references to the same operations, then projects results into attachments and files. Each composition creates its own runtime; sharing code does not require a common remote server. [Operation contract](capabilities.md)
+
+Provider drivers implement an operation rather than taking ownership of a conversation. The built-in protocol driver handles Responses, Chat, Messages and injected Realtime execution. A host plugin or application may register a local parser or an independently authorized service directly. The registry interface is implemented; a ready-to-run remote independent-harness MCP/HTTP adapter is still an extension task, not a configurable feature shipped today.
+
+The stock MCP server uses a single configured model-protocol upstream and key. Native DSH configuration supports separately configured provider endpoints and Host credentials. Do not interchange their configuration schemas. [Provider settings and extension workflow](providers.md)
+
+## Model Proxy and Capability Proxy
+
+| Role | Example | Client contract |
 | --- | --- | --- |
-| Provider-native tools | Capability Proxy calls CLIProxyAPI, which routes the request to the authorized provider | Included in the current release |
-| Independent harness tools | A dedicated adapter calls the harness's MCP or HTTP tool interface directly from the Capability Proxy | Extension path that requires an adapter |
+| Model Proxy | External CLIProxyAPI, or an existing compatible model service | Model inference/catalog APIs; `/v1` in the hosted example |
+| Capability Proxy | oh-my-harness MCP adapter composed with Capability Core | Streamable HTTP `/mcp` with a distinct client key |
 
-The included Codex search route requests a native Responses tool and the Kimi search route uses the Messages server tool. Search results are checked against upstream tool actions or result blocks. Audio tools use CLIProxyAPI's Realtime WebSocket route. A direct harness adapter would use the independent service's own tool contract and credentials, then expose its tools through the same client-facing MCP endpoint. [Provider configuration and extension workflow](providers.md)
+Model access and capability access can be purchased, hosted and configured independently. The optional `npm run proxy` convenience command launches an external CLIProxyAPI binary; oh-my-harness does not implement its login or protocol translation. Accounts authorized there, including paid Agent subscriptions, may supply atomic capabilities to a different conversation model. Availability still depends on the account, model and actual route.
 
-## Credentials and files
+The core and native adapters can use other compatible services. The stock hosted configuration is a concrete CLIProxyAPI-backed example, not the definition of the project.
 
-| Credential | Where it is used |
+## Deployment and credentials
+
+For hosted access, Caddy or NGINX terminates HTTPS on domain names and routes `/v1` and `/mcp` to separate loopback backends. Either one or two hostnames can be used. A colocated client may use loopback directly. DSH and Gateway can live on different hosts; neither depends on a client SSH tunnel. [Deployment instructions](deployment.md)
+
+| Credential | Owner and use |
 | --- | --- |
-| Provider login or API key | CLIProxyAPI stores upstream authorization in its private configuration or OAuth state. |
-| Model client key | CLIProxyAPI checks it on model requests. `npm run init` creates `.state/model.key` when it manages the local CLIProxyAPI configuration. |
-| Capability client key | The Capability Proxy checks it on `/mcp`. The default file is `.state/gateway.key`. |
-| Capability upstream key | The Capability Proxy presents a CLIProxyAPI client key when it calls upstream. The default is the model key file. An operator can configure a separate file. |
+| Provider account/API authorization | The upstream service or CLIProxyAPI's private OAuth/config state |
+| Model client key | Model API authentication |
+| Capability client key | Authentication to `/mcp`; never reused as the model key |
+| Capability upstream credential | The selected provider; stock MCP uses a key file, native DSH uses Host credential references |
+| Independent-harness credential | Application-supplied adapter and that external service |
 
-The DSH MCP file adapter runs on the DSH machine. It reads inputs from `gateway-tools/` inside the configured workspace and sends their bytes through MCP. It saves generated PNG and WAV results in that directory. Direct HTTP MCP clients send and receive the media described by the tool schemas.
+The MCP stdio file adapter runs beside its client and confines files to its artifact directory. Native DSH uses its attachment and filesystem services, enforcing admission before upload and keeping output delivery with the host. These are distinct file policies, not interchangeable path settings.
 
-An authorized paid agent account can supply an individual tool to a workflow whose conversation uses another provider. Capability access depends on the account, the selected model and the CLIProxyAPI route. Configuration selects which tools to advertise. Model discovery and MCP discovery can be checked separately, then an actual tool call checks the upstream route. [Deployment and checks](deployment.md)
+## Skill asset integration
 
-Generated keys, OAuth files, runtime configuration, and DSH profiles and workspaces belong under the local state directory by default. The repository allowlist includes source, documentation, and example configuration. Keep deployment overrides and tool outputs in runtime state or another private directory.
+The Skill manager maintains one accepted source plus version, digest and operation records, then adapts discovery for supported clients. It does not choose when a Skill runs or grant its scripts and tools permissions. Discovery can precede a manager's bind record when a host directly scans the accepted source root. [Lifecycle and discovery semantics](skill-source-management.md)
 
-## Optional client-side Skill source management
+The current module handles standalone Skills and Codex/Claude Code views, with lifecycle writes on macOS. It remains in `extensions/skill-source-management/`; directory membership means an optional project integration, not that it is a DSH runtime plugin. Full plugin/cache management, more hosts and hosted asset distribution are not implied.
 
-The [local Skill source manager](../extensions/skill-source-management/README.md) manages local instruction/resource packages, not provider execution. Its initial implementation supports standalone packages and Codex/Claude Code views on macOS. Accepted sources live outside the project checkout; consuming agents own discovery, invocation and tool authority. [Broader design and deferred adapters](skill-source-management.md)
+## Source and instance ownership
 
-The optional Python CLI is not imported by the capability execution core, MCP or native DSH plugins. It adds no endpoint or provider capability enum and does not change `/v1`, `/mcp`, the [runtime diagram](architecture.json), credentials or DSH session ownership. Complete plugin adapters, hosted distribution and OS write isolation remain deferred.
+Public source contains reusable code, examples, fixtures and evidence of supported boundaries. Private instance configuration owns endpoints, host paths, model choices, credentials, accepted personal assets, receipts, runtime state and task outputs. Installation examples and tests use isolated state; an open-source reference module does not silently replace an existing host manager.
+
+Architecture JSON describes responsibilities and example placements, not executable deployment configuration. Its `schemaVersion` versions this descriptive structure independently of package or upstream versions. The picture illustrates that model; integration status and supported limits are authoritative in text and tests.

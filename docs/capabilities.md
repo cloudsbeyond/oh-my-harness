@@ -1,23 +1,10 @@
-# A capability core, not an MCP-shaped application
+# Capability execution contract
 
-The reusable unit in oh-my-harness is a capability execution, not a tool registration. MCP is one consumer. A native harness plugin or another application can call the same execution layer without creating an MCP server, connecting a client, or translating files through a tool schema.
+`CapabilityRuntime` executes an independent operation against a selected provider. It is an in-process API shared by MCP and native host adapters; [architecture and ownership](architecture.md) describes their placement.
 
 ## Current implementation
 
-```text
-MCP schema and Base64 adapter          Native DSH Host plugin
-                 \                    /
-                   CapabilityRuntime
-                operation + input + selection
-                         |
-                registered provider drivers
-                         |
-              Responses / Chat / Messages / audio WS
-```
-
-The core is implemented in `src/capabilities/runtime.mjs` and `contracts.mjs`. Protocol implementations live beside it, not inside MCP callbacks. `src/tools.mjs` contains the compatibility schemas and wire mappings. Existing MCP tool names, media envelopes and stdio artifact confinement remain in place.
-
-This is a local source-level API, not a new remotely deployed HTTP capability endpoint. The existing server still exposes `/mcp`; model requests use the independently authenticated model API. Do not use a capability key as a model key.
+`src/capabilities/runtime.mjs` and `contracts.mjs` own selection, validation and lifecycle. Protocol drivers live beside them; `src/tools.mjs` owns MCP schemas and encoding. Host adapters own filesystem access, credentials and result delivery.
 
 ### Operations
 
@@ -36,6 +23,8 @@ This is a local source-level API, not a new remotely deployed HTTP capability en
 Media inputs are `{ data: Uint8Array, mimeType, name? }`; documents and video require a filename. Filesystem access belongs to the host. Base64 encoding belongs to a transport adapter. Neither is the core's input contract.
 
 Text results use `{ kind: 'text', text, sources?, model? }`. Media results use `{ kind: 'image' | 'audio', data, mimeType, model?, transcript? }`. The runtime attaches authoritative `provider` and `operation` fields. A protocol driver reports the actual upstream model when available; it does not claim that the conversation model also synthesized the audio or image.
+
+Delivery adapters retain their existing host/wire contracts. Native tool values preserve provider/operation identity, but their rendered text does not always display it. DSH's `ctx.web` search projection returns content and sources without provider/model fields; legacy MCP image/audio envelopes also omit that execution identity. Use the core result or the selected route/configuration when tracing execution; a visible result or citation alone does not prove which provider ran it. Adding a uniform identity field to all public result schemas requires separate compatibility review.
 
 The contracts are closed and validated before dispatch. Unknown fields are not silently treated as supported features. The first implementation intentionally does not promise masks, voice selection, language controls, long video, arbitrary document formats or streaming transcripts.
 
@@ -100,36 +89,12 @@ Current bounds:
 
 These are validated size and container/header constraints, not an assertion that every upstream provider can interpret every valid file. The core does not transcode. A native voice adapter must explicitly resample a host's recording format rather than relabel it.
 
-## Why the boundaries matter
+### Search evidence
 
-### MCP is a transport, not the capability model
-
-The original implementation placed request construction, media encoding and provider result parsing inside tool callbacks. That was convenient for the first client, but made native integration depend on the tool protocol. Moving those operations out allows both entry points to share actual behavior and tests. Merely renaming a tool or adding a native-looking wrapper would not establish this boundary.
-
-### A capability is not a provider brand
-
-A conversation can use one model while search or transcription uses another source. A document operation might instead use a local deterministic parser. The host should depend on the operation's meaning and result contract, not on a provider name or response envelope.
-
-This does not justify an all-purpose workflow engine: routing, bounds, lifecycle and error semantics are enough for this layer. Conversation planning and judgment remain with the harness.
-
-### Model-native execution is different from a host tool
-
-A Responses-native search or image tool participates in the main model request and its replay. A separately invoked host capability is an independent operation. They can share protocol helpers, but must not be executed twice for the same request. Native output metadata, history edits and replay degradation require their own tests; working MCP calls do not prove replay correctness.
-
-### Retrieval is not a generated summary
-
-The search operation's URL mode asks a model to open a page and checks recorded page actions. Its result is attributable evidence, not the raw HTTP response body. It must not masquerade as `web_fetch`, invent HTTP status codes or replace deterministic fetching when exact page content is needed.
-
-### Reuse the host before inventing another application
-
-For DSH, attachment storage, credential references, web provider selection, optional speech-to-text, Office conversion/rendering/recalculation and file previews already have owners. A plugin should integrate with those owners. A document model is useful for understanding a file; it is not automatically the right mechanism for writing a spreadsheet or recalculating formulas.
-
-A readonly spreadsheet preview is not a full Excel editor. A provider installed on disk is not necessarily enabled. A tool returning an artifact does not prove that the user can preview or download it. These distinctions are acceptance criteria, not wording details.
+`web.search` URL mode requires recorded page actions and returns attributable evidence, not a raw HTTP body. Use the host's deterministic fetch service when exact response content is required.
 
 ## Verification and migration
 
-`npm test` covers the independent registry, switching non-branded providers, model ambiguity, no silent fallback, cancellation, operation validation, protocol payloads, media envelopes, real Node WebSocket authentication and the existing MCP/file-adapter regressions. The network fixtures use local simulated upstreams; no paid provider is called.
+`npm test` covers operation contracts, provider selection, cancellation, protocol payloads, media results and MCP/file-adapter compatibility using local fixtures. Existing MCP schemas remain unchanged. Model-native replay, host attachment delivery and Skill lifecycle have separate integration boundaries and checks.
 
-Existing MCP clients need no schema migration. The server now composes a capability runtime and maps the same tool calls into it. Native host plugins can consume the runtime directly, with host-resolved credentials and controlled attachments.
-
-The [native DSH bundle](../extensions/dsh-capabilities/README.md) calls this core directly and registers search with the existing Host web service. It has been installed and exercised in the desktop App using synthetic document, image, audio and video inputs; see the [integration verification record](dsh-integration.md#what-has-actually-been-verified) for evidence and limits. Microphone-to-draft and document-tab WAV playback now have optional native UI code and lifecycle/protocol regressions; real microphone/browser playback and visual settings remain unverified. The verified main-model Codex Native release has also been activated locally against its actual dependency baseline, with prior state retained for rollback. Public examples use configurable endpoints and credential references; personal paths, keys and runtime snapshots do not belong in the open-source package.
+[Extension workflow](providers.md#extension-workflow) · [DSH host integration](dsh-integration.md) · [Version-scoped evidence](verification/dsh-0.2.2-rc.3.md)

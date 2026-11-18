@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Native voice input (oh-my-harness)",
-    "description": "Optional microphone-to-draft transcription through the oh-my-harness capability provider. Reuses the Host speech registry, speech Remote and composer draft insertion; recordings are sent to the configured cloud provider. Transcripts fill the draft and are never sent automatically. Requires the oh-my-harness capability bundle for provider routing."
+    "title": "Cloud speech provider (oh-my-harness)",
+    "description": "Adds a cloud recognizer to the official Voice input bundle, next to local SenseVoice. Choose it in Voice input settings; audio goes to the configured provider only when cloud recognition is selected. Requires the oh-my-harness capability bundle. Uses automatic language detection."
   }
 }

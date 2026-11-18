@@ -37,7 +37,7 @@
     "src/*.mjs", "src/capabilities/*.mjs", "bin/*.mjs",
     "config/default.json", "config/providers.example.json", "deploy/Caddyfile.example", "deploy/nginx.conf.example", "docs/*.md", "docs/verification/*.md", "docs/architecture.png", "docs/architecture.json", "cordis.patch.yml",
     "extensions/dsh-capabilities/*.mjs", "extensions/dsh-capabilities/client.js", "extensions/dsh-capabilities/README.md", "extensions/dsh-capabilities/icon.svg", "extensions/dsh-capabilities/locale/*.json",
-    "extensions/dsh-voice-input/*.mjs", "extensions/dsh-voice-input/client.js", "extensions/dsh-voice-input/package.json", "extensions/dsh-voice-input/cordis.patch.yml", "extensions/dsh-voice-input/README.md", "extensions/dsh-voice-input/LICENSE", "extensions/dsh-voice-input/icon.svg", "extensions/dsh-voice-input/locale/*.json",
+    "extensions/dsh-voice-input/*.mjs", "extensions/dsh-voice-input/package.json", "extensions/dsh-voice-input/cordis.patch.yml", "extensions/dsh-voice-input/README.md", "extensions/dsh-voice-input/LICENSE", "extensions/dsh-voice-input/icon.svg", "extensions/dsh-voice-input/locale/*.json",
     "extensions/dsh-native/*.mjs", "extensions/dsh-native/README.md",
     "extensions/dsh-native-codex/*.mjs", "extensions/dsh-native-codex/README.md", "extensions/dsh-native-codex/package.json", "extensions/dsh-native-codex/vendor/LICENSE",
     "test/*.mjs", "LICENSE",

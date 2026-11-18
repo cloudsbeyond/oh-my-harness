@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "原生语音输入（oh-my-harness）",
-    "description": "通过 oh-my-harness 能力供应方进行可选的麦克风转写并回填草稿。复用宿主 speech 注册表、speech Remote 与输入框草稿插入；录音会上传到所配置的云端供应方。转写只填入草稿，不会自动发送。依赖 oh-my-harness 能力插件提供 provider 路由。"
+    "title": "云端语音识别（oh-my-harness）",
+    "description": "在官方「语音输入」中添加云端识别，可与 SenseVoice 本地识别切换。仅选用云端时，录音才会发送到所配置的供应方。依赖 oh-my-harness 能力插件；云端仅支持自动检测语言。"
   }
 }

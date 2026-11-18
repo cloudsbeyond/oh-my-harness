@@ -35,7 +35,7 @@ Resolve identity through the filesystem provider, perform bounded reads, and rej
 
 Generated images retain original PNG files and normalized image attachments for follow-up. Audio is a durable file. Saving bytes and producing a model-visible result are separate from showing a usable preview/download control.
 
-The root bundle includes a WAV player in the **document-preview tab**. The [optional voice bundle](../extensions/dsh-voice-input/README.md) separately handles microphone capture, format conversion and guarded draft insertion; it never auto-submits. Its provider, recording limits and activation requirements belong in that module's instructions.
+The root bundle includes a WAV player in the **document-preview tab**. Official Voice input owns microphone capture and guarded draft insertion; it never auto-submits. The [optional cloud speech provider](../extensions/dsh-voice-input/README.md) adds a second recognizer and adapts the audio format, not a second browser client or speech API.
 
 UI code uses the host React and Remote contracts. The root bundle's relative no-op Host entry lets DSH discover its client manifest; a `package/subpath` entry alone is insufficient in this baseline. Keep that loader entry and the reproducible `npm run build:client` output. Reuse an existing speech Remote and avoid competing speech registry/controller owners.
 

@@ -59,6 +59,14 @@ test('actual npm tarball retains runtime, optional bundles, architecture and lic
   assert.ok(validatePackageFiles(shipped) >= 15);
 });
 
+test('voice distribution ships only the Host provider, with no second client', () => {
+  const voicePath = 'extensions/dsh-voice-input/';
+  assert.ok(!shipped.has(voicePath + 'client.js'));
+  assert.throws(() => validatePackageFiles(changedJson(voicePath + 'package.json', (pkg) => {
+    pkg.dsh.client = { platform: 'web' };
+  })), /voice provider must not ship a separate client/);
+});
+
 test('actual distribution includes the deployment templates linked from its guide', () => {
   for (const name of ['deploy/Caddyfile.example', 'deploy/nginx.conf.example']) {
     assert.ok(shipped.has(name), 'deployment guide target missing: ' + name);

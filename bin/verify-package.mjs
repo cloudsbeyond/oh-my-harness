@@ -18,7 +18,7 @@ const requiredFiles = [
   'docs/architecture.md', 'docs/architecture.json', 'docs/architecture.png', 'docs/capabilities.md', 'docs/dsh-integration.md', 'docs/verification/dsh-0.2.2-rc.3.md',
   ...['index.mjs', 'host-entry.mjs', 'backend.mjs', 'files.mjs', 'tools.mjs', 'audio-preview-core.mjs', 'build-client.mjs', 'client.js', 'icon.svg', 'locale/en.json', 'locale/zh.json']
     .map((file) => `extensions/dsh-capabilities/${file}`),
-  ...['package.json', 'cordis.patch.yml', 'LICENSE', 'index.mjs', 'resample.mjs', 'client.js', 'icon.svg', 'locale/en.json', 'locale/zh.json']
+  ...['package.json', 'cordis.patch.yml', 'LICENSE', 'index.mjs', 'resample.mjs', 'icon.svg', 'locale/en.json', 'locale/zh.json']
     .map((file) => `extensions/dsh-voice-input/${file}`),
   'extensions/dsh-native/release.mjs', 'extensions/dsh-native/host-loader.mjs',
   ...['package.json', 'plugin.mjs', 'native-images.mjs', 'native-search.mjs', 'transport.mjs', 'baseline.mjs', 'build-adapter.mjs', 'build-release.mjs', 'adapter-patch.mjs', 'paths.mjs', 'vendor/LICENSE']
@@ -167,16 +167,18 @@ export function validatePackageFiles(files) {
   if (voice.name !== 'oh-my-harness-voice-input' || voice.license !== 'MIT') fail('voice package identity/license changed');
   for (const [pkg, keys] of [
     [manifest, ['.', './capabilities', './capabilities/contracts', './capabilities/protocol', './capabilities/realtime', './dsh', './client', './locale/*.json', './icon', './dsh/locale/*.json', './dsh/icon', './package.json']],
-    [voice, ['.', './client', './locale/*.json', './icon']],
+    [voice, ['.', './locale/*.json', './icon']],
   ]) {
     for (const key of keys) if (!pkg.exports?.[key]) fail(`missing required export: ${key}`);
   }
   checkExports(files, manifest); checkExports(files, voice, voiceBase);
   for (const [base, pkg] of [['', manifest], [voiceBase, voice]]) {
     const patch = pkg.dsh?.bundle?.patch;
-    if (!patch?.startsWith('./') || pkg.dsh?.client?.platform !== 'web') fail('missing native client/bundle prerequisite');
+    if (!patch?.startsWith('./')) fail('missing native bundle prerequisite');
     requireFile(files, base + patch.slice(2));
   }
+  if (manifest.dsh?.client?.platform !== 'web') fail('missing native client prerequisite');
+  if (voice.dsh?.client !== undefined || voice.exports?.['./client'] !== undefined || files.has(voiceBase + 'client.js')) fail('voice provider must not ship a separate client');
   for (const peer of ['@deepseek-ai/dsh-experimental-speech-to-text', '@deepseek-ai/dsh-experimental-api-speech-to-text']) {
     if (!voice.peerDependencies?.[peer]) fail('missing optional voice Host prerequisite');
   }
@@ -221,7 +223,7 @@ export async function verifyPackage({ sourceRoot = fileURLToPath(new URL('../', 
     }
     const { build } = await import(pathToFileURL(path.join(extracted, 'extensions/dsh-capabilities/build-client.mjs')));
     if (build() !== files.get('extensions/dsh-capabilities/client.js').toString('utf8')) fail('detached generated client differs from shipped client');
-    for (const name of ['src/capabilities/runtime.mjs', 'extensions/dsh-capabilities/index.mjs', 'extensions/dsh-capabilities/client.js', 'extensions/dsh-voice-input/index.mjs', 'extensions/dsh-voice-input/client.js']) {
+    for (const name of ['src/capabilities/runtime.mjs', 'extensions/dsh-capabilities/index.mjs', 'extensions/dsh-capabilities/client.js', 'extensions/dsh-voice-input/index.mjs']) {
       execFileSync(process.execPath, ['--check', path.join(extracted, name)], { timeout: 10000, stdio: 'pipe' });
     }
     const manifest = JSON.parse(files.get('package.json'));

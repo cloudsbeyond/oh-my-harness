@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
-import { resampleRecording, maxRecordingBytes } from '../extensions/dsh-voice-input/resample.mjs';
+import { resampleRecording, maxRecordingBytes, maxRecordingSeconds } from '../extensions/dsh-voice-input/resample.mjs';
 import { createSpeechProvider, apply } from '../extensions/dsh-voice-input/index.mjs';
 import { wavPcm } from '../src/capabilities/contracts.mjs';
 import { createHostBackend } from '../extensions/dsh-capabilities/backend.mjs';
@@ -122,215 +121,16 @@ test('Host speech registration owns its async disposer without owning the shared
 });
 
 
-const tick = () => new Promise((resolve) => setImmediate(resolve));
-const clientCode = readFileSync(new URL('../extensions/dsh-voice-input/client.js', import.meta.url), 'utf8');
-function catalog(id = 'oh-my-harness', phase = 'ready', language = 'auto') {
-  return { providers: [{ id, languages: ['auto'], preparation: { phase } }], selection: { providerId: id, language }, maxDurationSeconds: 40, maxAudioBytes: 1280044 };
-}
-function events() {
-  const listeners = new Map();
-  return { addEventListener: (name, callback) => { const set = listeners.get(name) ?? new Set(); set.add(callback); listeners.set(name, set); },
-    removeEventListener: (name, callback) => listeners.get(name)?.delete(callback),
-    dispatch: (name, value = {}) => { for (const cb of listeners.get(name) ?? []) cb(value); },
-    count: () => [...listeners.values()].reduce((sum, value) => sum + value.size, 0) };
-}
-function createClient({ hooks, recordingEnv = {}, mountWait, uiFailure, reuse = false } = {}) {
-  let entry; const registrations = []; const cleanups = []; const scopeCleanups = []; const calls = []; const timers = new Map();
-  const windowEvents = events(), documentEvents = events();
-  const sandbox = { window: { ...windowEvents, __ModuleLoader__: { load: (value) => { entry = value; } } },
-    document: { ...documentEvents, hidden: false }, navigator: {}, console, AbortController, DOMException, Uint8Array, DataView,
-    Blob, btoa: (text) => Buffer.from(text, 'binary').toString('base64'),
-    setTimeout: (fn, delay) => { const id = {}; timers.set(id, { fn, delay }); return id; }, clearTimeout: (id) => timers.delete(id), ...recordingEnv };
-  vm.runInNewContext(clientCode, sandbox, { filename: 'voice-client.js' });
-  const react = hooks ?? { createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
-    useState: (initial) => [initial, () => {}], useEffect: () => {}, useLayoutEffect: () => {}, useRef: (value) => ({ current: value }) };
-  class CarrierError extends Error {}
-  const contribution = { package: '@deepseek-ai/dsh-experimental-api-speech-to-text', descriptors: [{ namespace: 'speech' }] };
-  const modules = { react, '@deepseek-ai/dsh-client-ui-primitives': new Proxy({}, { get: (_, name) => name }),
-    '@deepseek-ai/dsh-experimental-api-speech-to-text/remote': { default: contribution, TYPERT_REMOTE: contribution },
-    '@deepseek-ai/dsh-api-gateway/client': { RemoteStreamCarrierError: CarrierError } };
-  const exported = entry.factory((name) => { assert.ok(modules[name], 'declared client module ' + name); return modules[name]; });
-  let emit, fail, streamClosed = false, currentCatalog = catalog();
-  const readyQueue = []; let wake;
-  const stream = { async *[Symbol.asyncIterator]() { while (!streamClosed) { if (!readyQueue.length) await new Promise((resolve) => { wake = resolve; }); if (streamClosed) return; const value = readyQueue.shift(); yield { value, accept: () => calls.push('accept') }; } },
-    dispose: async () => { calls.push('stream.dispose'); streamClosed = true; wake?.(); } };
-  const speech = { catalog: async () => ({ ok: true, value: currentCatalog }), transcribe: async (request, signal) => { calls.push({ request, signal }); return { ok: true, value: { text: 'dictated' } }; }, configure: async () => ({ ok: true }) };
-  const remote = { speech, $mount: async (value) => { calls.push({ mount: value }); if (mountWait) await mountWait; return async () => { calls.push('remote.dispose'); }; },
-    $stream: (options) => { emit = (value) => { currentCatalog = value; readyQueue.push(value); wake?.(); }; fail = options.carrierFailed; calls.push('stream.open'); return stream; } };
-  const scope = { effect: (setup) => { const value = setup(); if (value) scopeCleanups.push(value); },
-    locale: { register: (ns, dicts) => { assert.equal(ns, 'omh-voice'); assert.ok(dicts.en && dicts.zh); return () => calls.push('locale.dispose'); } },
-    slots: { inject: (name, cb) => cb(), register: (options, component) => { registrations.push({ ...options, component, actions: options.inject() }); return () => calls.push('slot.dispose'); } },
-    get: () => ({ openBundle: (name) => calls.push({ settings: name }) }), remote };
-  const ctx = { remote, effect: (setup) => { const value = setup(); if (value) { Promise.resolve(value).catch(() => {}); cleanups.push(value); } return value; },
-    get: (name) => reuse && name === 'remote.speech' ? speech : undefined,
-    inject: (deps, cb) => { assert.deepEqual([...deps], ['remote.speech', 'slots', 'locale']); calls.push('ui.inject');
-      const loading = Promise.resolve().then(() => { if (uiFailure) throw uiFailure; cb(scope); });
-      return { then: (yes, no) => loading.then(() => yes?.({ dispose() {} }), no), dispose: async () => { calls.push('ui.dispose'); for (const cleanup of [...scopeCleanups].reverse()) await cleanup(); } }; } };
-  exported.apply(ctx);
-  return { calls, registrations, timers, sandbox, exported, contribution, remote, emit: (value) => emit(value), fail: (error) => fail(error),
-    ready: async () => { for (const value of cleanups) if (typeof value !== 'function') await value; await tick(); },
-    dispose: async () => { for (const value of [...cleanups].reverse()) { const cleanup = await value; if (typeof cleanup === 'function') await cleanup(); } },
-    listeners: () => windowEvents.count() + documentEvents.count() };
-}
-
-test('voice client mounts generated default contribution and disposes a non-Promise Fiber before Remote', async () => {
-  const client = createClient(); await client.ready();
-  assert.equal(client.calls.find((item) => item.mount)?.mount, client.contribution);
-  assert.deepEqual(client.registrations.map((item) => item.name), ['conversation.input.activity', 'plugins.bundle.config', 'plugins.bundle.activation']);
-  assert.ok(client.registrations.every((item) => item.locale === 'omh-voice'));
-  assert.ok(client.registrations.slice(1).every((item) => item.key === 'oh-my-harness-voice-input'));
-  await client.dispose();
-  assert.ok(client.calls.indexOf('ui.dispose') < client.calls.indexOf('remote.dispose'));
-  assert.ok(client.calls.includes('stream.dispose'));
-});
-
-test('voice client startup failure withdraws both the UI fiber and its Remote mount', async () => {
-  const failure = new Error('UI registration failed'); const client = createClient({ uiFailure: failure });
-  await assert.rejects(client.ready(), (error) => error === failure);
-  assert.ok(client.calls.includes('ui.dispose')); assert.ok(client.calls.includes('remote.dispose'));
-});
-
-test('[defect-probing] voice setup and recovery navigate to capability settings without changing card ownership', async (t) => {
-  const client = createClient(); t.after(() => client.dispose()); await client.ready();
-  for (const registration of client.registrations) registration.actions.openSettings();
-  assert.deepEqual(client.calls.filter((value) => value.settings).map((value) => value.settings), ['oh-my-harness', 'oh-my-harness', 'oh-my-harness']);
-  assert.ok(client.registrations.slice(1).every((value) => value.key === 'oh-my-harness-voice-input'));
-});
-
-test('voice peer declaration identifies the separately configured capability bundle', () => {
-  const manifest = JSON.parse(readFileSync(new URL('../extensions/dsh-voice-input/package.json', import.meta.url), 'utf8'));
+test('cloud deployment reuses official speech rows and adds no second browser client', () => {
+  const voice = new URL('../extensions/dsh-voice-input/', import.meta.url);
+  const manifest = JSON.parse(readFileSync(new URL('package.json', voice), 'utf8'));
+  assert.equal(manifest.dsh.client, undefined);
+  assert.equal(manifest.exports['./client'], undefined);
+  assert.ok(!manifest.files.includes('client.js'));
+  const patch = readFileSync(new URL(manifest.dsh.bundle.patch, voice), 'utf8');
+  assert.deepEqual([...patch.matchAll(/^\s*- id: (\S+)$/gm)].map((match) => match[1]), ['api-speech-to-text', 'omh-voice-input']);
+  assert.match(patch, new RegExp('maxDurationSeconds: ' + maxRecordingSeconds + '$', 'm'));
+  assert.match(patch, new RegExp('maxAudioBytes: ' + maxRecordingBytes + '$', 'm'));
   assert.equal(manifest.peerDependencies['oh-my-harness'], '^0.2.0');
-  for (const name of ['oh-my-harness', '@deepseek-ai/dsh-experimental-speech-to-text', '@deepseek-ai/dsh-experimental-api-speech-to-text'])
-    assert.equal(manifest.peerDependenciesMeta[name]?.optional, true);
-  assert.equal(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-slots'), false);
-  assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-api-gateway'));
-  assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-primitives'));
-});
-
-
-function renderer() {
-  const values = [], effects = []; let cursor = 0, scheduled = [];
-  const effect = (setup, deps) => { const at = cursor++; const old = effects[at]; if (!old || deps.some((value, i) => value !== old.deps[i])) scheduled.push(() => { old?.cleanup?.(); effects[at] = { deps, cleanup: setup() }; }); };
-  const hooks = { createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
-    useState: (initial) => { const at = cursor++; if (!(at in values)) values[at] = initial; return [values[at], (value) => { values[at] = typeof value === 'function' ? value(values[at]) : value; }]; },
-    useRef: (initial) => { const at = cursor++; return values[at] ??= { current: initial }; },
-    useEffect: effect, useLayoutEffect: effect, useSyncExternalStore: (_subscribe, snapshot) => snapshot() };
-  return { hooks, render: (component, props) => { cursor = 0; scheduled = []; const tree = component(props); for (const commit of scheduled) commit(); return tree; },
-    unmount: () => { for (const value of effects) value?.cleanup?.(); } };
-}
-function nodes(tree) { return !tree || typeof tree !== 'object' ? [] : [tree, ...tree.children.flatMap((child) => Array.isArray(child) ? child.flatMap(nodes) : nodes(child))]; }
-function button(tree, label) { return nodes(tree).find((node) => node.type === 'Button' && (node.props['aria-label'] === label || node.children.includes(label))); }
-async function composer(options = {}) {
-  const ui = renderer(); const client = createClient({ ...options, hooks: ui.hooks }); await client.ready(); client.emit(catalog()); await tick();
-  const registration = client.registrations[0]; let span = 0; const insertions = []; let insertAccepted = true;
-  const props = { ...registration.actions, sessionId: 'session-a', locked: false, onActiveChange: () => {}, t: (key) => key,
-    inputActions: { captureInsertion: () => ({ revision: ++span }), insertText: (text, selection) => { insertions.push({ text, selection }); return insertAccepted; }, submit: () => assert.fail('dictation never submits') } };
-  const captures = [];
-  props.createRecording = () => { const capture = { start: async (onError) => { capture.onError = onError; }, stop: async () => recording(),
-    dispose: async () => { capture.disposed = true; } }; captures.push(capture); return capture; };
-  return { client, props, captures, insertions, ui, render: () => ui.render(registration.component, props), refuseInsert: () => { insertAccepted = false; }, acceptInsert: () => { insertAccepted = true; },
-    close: async () => { ui.unmount(); await client.dispose(); } };
-}
-
-test('voice readiness observes provider changes and reconnects without admitting other recognizers', async () => {
-  const c = await composer();
-  assert.equal(button(c.render(), 'start').props.disabled, false);
-  for (const value of [catalog('sensevoice'), catalog('oh-my-harness', 'unprepared'), catalog('oh-my-harness', 'failed'), catalog('oh-my-harness', 'ready', 'zh')]) {
-    c.client.emit(value); await tick(); button(c.render(), 'setupPrompt').props.onClick(); assert.equal(c.captures.length, 0);
-  }
-  c.client.emit(catalog()); await tick(); c.client.fail(new Error('carrier disconnected'));
-  button(c.render(), 'setupPrompt').props.onClick(); assert.equal(c.captures.length, 0);
-  c.client.emit(catalog()); await tick(); assert.ok(button(c.render(), 'start'));
-  let observed = 0; const unsubscribe = c.props.readiness.subscribe(() => observed++);
-  c.client.emit(catalog('oh-my-harness', 'standby')); await tick(); assert.equal(observed, 1); unsubscribe();
-  c.client.emit(catalog('oh-my-harness', 'waking')); await tick(); assert.equal(observed, 1); assert.ok(button(c.render(), 'start'));
-  assert.ok(c.client.calls.filter((value) => value === 'accept').length >= 7);
-  await c.close(); assert.equal(c.client.listeners(), 0);
-});
-
-test('dictation sends canonical base64 and inserts exactly once into the captured draft without submitting', async () => {
-  const c = await composer(); button(c.render(), 'start').props.onClick(); await tick();
-  assert.ok(button(c.render(), 'stop')); assert.equal(c.client.timers.size, 1);
-  button(c.render(), 'stop').props.onClick(); await tick();
-  const sent = c.client.calls.find((value) => value.request);
-  assert.deepEqual(Object.keys(sent.request).sort(), ['audioBase64', 'language', 'providerId']);
-  assert.equal(sent.request.audioBase64, recording().toString('base64')); assert.equal(sent.request.providerId, 'oh-my-harness'); assert.equal(sent.request.language, 'auto');
-  assert.deepEqual(c.insertions, [{ text: 'dictated', selection: { revision: 1 } }]);
-  assert.ok(button(c.render(), 'start')); assert.equal(c.client.timers.size, 0);
-  await c.close();
-});
-
-test('changed drafts retain transcription for explicit fresh-span insertion and session changes discard it', async () => {
-  const c = await composer(); c.refuseInsert(); button(c.render(), 'start').props.onClick(); await tick(); button(c.render(), 'stop').props.onClick(); await tick();
-  assert.ok(button(c.render(), 'insert')); c.acceptInsert(); button(c.render(), 'insert').props.onClick();
-  assert.equal(c.insertions.length, 2); assert.deepEqual(c.insertions[1].selection, { revision: 2 });
-  c.refuseInsert(); button(c.render(), 'start').props.onClick(); await tick(); button(c.render(), 'stop').props.onClick(); await tick();
-  assert.ok(button(c.render(), 'discard')); c.props.sessionId = 'session-b'; c.render();
-  assert.ok(button(c.render(), 'start')); assert.equal(button(c.render(), 'insert'), undefined);
-  await c.close();
-});
-
-test('cancel during permission or transcription invalidates late results and clears microphone activity', async (t) => {
-  for (const phase of ['permission', 'transcription', 'session']) await t.test(phase, async () => {
-    const c = await composer(); let resolve;
-    const pending = new Promise((done) => { resolve = done; }); let disposed = 0;
-    c.props.createRecording = () => ({ start: () => phase === 'permission' ? pending : Promise.resolve(), stop: async () => recording(), dispose: async () => { disposed++; } });
-    c.props.transcribe = { transcribe: (_request, signal) => { c.signal = signal; return pending; } };
-    button(c.render(), 'start').props.onClick(); await tick();
-    if (phase !== 'permission') { button(c.render(), 'stop').props.onClick(); await tick(); }
-    if (phase === 'session') { c.props.sessionId = 'session-b'; c.render(); } else button(c.render(), 'cancel').props.onClick();
-    resolve({ ok: true, value: { text: 'too late' } }); await tick();
-    assert.equal(c.insertions.length, 0); assert.equal(disposed, 1); assert.equal(c.client.timers.size, 0);
-    if (c.signal) assert.equal(c.signal.aborted, true);
-    assert.ok(button(c.render(), 'start')); await c.close();
-  });
-});
-
-test('blur visibility Escape interruption and locked composers stop or refuse capture', async (t) => {
-  for (const reason of ['blur', 'visibility', 'escape', 'interruption']) await t.test(reason, async () => {
-    const c = await composer(); c.props.locked = true; assert.equal(button(c.render(), 'setupPrompt').props.disabled, true);
-    c.props.locked = false; button(c.render(), 'start').props.onClick(); await tick();
-    if (reason === 'blur') c.client.sandbox.window.dispatch('blur');
-    if (reason === 'visibility') { c.client.sandbox.document.hidden = true; c.client.sandbox.document.dispatch('visibilitychange'); }
-    if (reason === 'escape') c.client.sandbox.document.dispatch('keydown', { key: 'Escape', preventDefault() {} });
-    if (reason === 'interruption') c.captures[0].onError(new Error('microphone removed'));
-    await tick(); assert.equal(c.client.timers.size, 0); assert.equal(c.insertions.length, 0);
-    if (reason !== 'interruption') assert.equal(c.captures[0].disposed, true);
-    await c.close(); assert.equal(c.client.listeners(), 0);
-  });
-});
-
-test('already mounted speech namespace remains owned by its existing contributor', async () => {
-  const c = createClient({ reuse: true }); await c.ready();
-  assert.equal(c.calls.some((value) => value.mount), false); assert.equal(c.registrations.length, 3);
-  await c.dispose(); assert.equal(c.calls.includes('remote.dispose'), false); assert.ok(c.calls.includes('ui.dispose'));
-});
-
-test('microphone permission grants arriving after disposal release tracks without starting a recorder', async () => {
-  let grant; let stopped = 0, recorders = 0;
-  const c = createClient({ recordingEnv: { navigator: { mediaDevices: { getUserMedia: () => new Promise((resolve) => { grant = resolve; }) } }, MediaRecorder: class { constructor() { recorders++; } } } });
-  await c.ready(); const capture = c.registrations[0].actions.createRecording(); const starting = capture.start();
-  const rejection = assert.rejects(starting, (error) => error.kind === 'cancelled');
-  const disposal = capture.dispose(); assert.equal(capture.dispose(), disposal); await disposal;
-  grant({ getTracks: () => [{ stop: () => { stopped++; } }] }); await rejection;
-  assert.equal(stopped, 1); assert.equal(recorders, 0); await c.dispose();
-});
-
-test('microphone denial setup failures and interruptions release capture resources', async (t) => {
-  for (const reason of ['permission', 'deviceMissing', 'setup', 'interruption']) await t.test(reason, async () => {
-    let stopped = 0, closed = 0, ended; const track = { stop: () => { stopped++; }, addEventListener: (_name, cb) => { ended = cb; } };
-    const c = createClient({ recordingEnv: { navigator: { mediaDevices: { getUserMedia: async () => {
-      if (reason === 'permission') throw new DOMException('denied', 'NotAllowedError');
-      if (reason === 'deviceMissing') throw new DOMException('missing', 'NotFoundError');
-      return { getTracks: () => [track] };
-    } } }, AudioContext: class { state = 'running'; close() { closed++; this.state = 'closed'; return Promise.resolve(); } },
-    MediaRecorder: class { state = 'inactive'; constructor() { if (reason === 'setup') throw new Error('bad recorder'); } start() { this.state = 'recording'; } stop() { this.state = 'inactive'; } } } });
-    await c.ready(); const capture = c.registrations[0].actions.createRecording(); let failure;
-    if (reason === 'interruption') { await capture.start((error) => { failure = error; }); ended(); await tick(); assert.equal(failure.kind, 'interrupted'); }
-    else await assert.rejects(capture.start(), (error) => reason === 'setup' ? error.message === 'bad recorder' : error.kind === reason);
-    await capture.dispose();
-    assert.equal(stopped, reason === 'setup' || reason === 'interruption' ? 1 : 0);
-    assert.equal(closed, reason === 'setup' || reason === 'interruption' ? 1 : 0);
-    await c.dispose();
-  });
+  assert.equal(manifest.peerDependenciesMeta['@deepseek-ai/dsh-experimental-speech-to-text']?.optional, true);
 });

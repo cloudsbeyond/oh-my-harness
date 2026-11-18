@@ -58,7 +58,7 @@ Hosted 示例区分两个职责：
 
 针对 **DSH 0.2.2-rc.3**，先运行 `npm ci`，在插件管理器中安装本地仓库根目录，再配置[宿主凭据引用与操作默认值](extensions/dsh-capabilities/README.md)。插件可直接调用兼容 provider API，不要求 MCP 服务或 CLIProxyAPI。
 
-插件接入宿主搜索与附件流程，包含文档页 WAV 预览；[可选语音输入](extensions/dsh-voice-input/README.md)负责麦克风转录回填草稿。若要在 GPT 主模型对话内保留搜索引用、图片与回放，使用独立的 [Codex model-native adapter](extensions/dsh-native-codex/README.md)。添加独立能力不会迁移主模型路由。
+插件接入宿主搜索与附件流程，包含文档页 WAV 预览；[可选云端语音识别](extensions/dsh-voice-input/README.md)接入官方语音输入，可与 SenseVoice 本地识别切换。若要在 GPT 主模型对话内保留搜索引用、图片与回放，使用独立的 [Codex model-native adapter](extensions/dsh-native-codex/README.md)。添加独立能力不会迁移主模型路由。
 
 ## 通过 MCP 用 DSH 跑通
 

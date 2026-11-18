@@ -1,18 +1,11 @@
-# Optional native voice input. The registry and speech API are existing Host
-# packages; this bundle contributes the provider adapter and browser UI.
-# Instance-owned limits: 40 s keeps the resampled 24 kHz PCM inside the core's
-# 2 MiB audio contract.
+# Load after the official Voice input bundle. It owns the shared registry,
+# controller and composer. Bound its existing controller, never insert another.
+- id: api-speech-to-text
+  name: '@deepseek-ai/dsh-experimental-api-speech-to-text'
+  config:
+    maxDurationSeconds: 40
+    maxAudioBytes: 1280044
 - insert:
-    - id: omh-speech-registry
-      name: '@deepseek-ai/dsh-experimental-speech-to-text'
-      config:
-        defaultProvider: oh-my-harness
-        language: auto
-    - id: omh-speech-api
-      name: '@deepseek-ai/dsh-experimental-api-speech-to-text'
-      config:
-        maxDurationSeconds: 40
-        maxAudioBytes: 1280044
     - id: omh-voice-input
       name: oh-my-harness-voice-input
       config: {}

@@ -1,23 +1,13 @@
-# Native voice input bundle
+# Cloud speech provider for DSH Voice input
 
-Experimental, optional add-on for the oh-my-harness capability bundle. It reuses the Host's experimental speech-to-text registry, generated speech Remote and composer voice-input slot; it does not install the official voice bundle and does not activate SenseVoice.
+This optional Host-only add-on registers the `oh-my-harness` cloud recognizer with DSH's official **Voice input** bundle. The official bundle owns the speech registry, browser interface, microphone and local SenseVoice. There is one composer microphone and one recognizer selector.
 
-## What it adds
+## Install and switch
 
-- A cloud STT provider (`oh-my-harness`) registered on `speechToText`, delegating to the shared `omhCapabilities` runtime's `speech.transcribe` operation default. Replacing that default replaces the transcription engine without changing this UI.
-- Strict adaptation of the Host's canonical 16 kHz mono PCM16 WAV recording to the capability core's 24 kHz contract, with a 40 second recording limit (the resampled PCM stays inside the core's 2 MiB audio bound).
-- A composer microphone activity with cancel/stop, Escape/blur/visibility cancellation, and draft insertion that never submits automatically.
-- Settings/activation cards registered under this bundle's own key; their configuration link opens the `oh-my-harness` capability bundle, where provider/default settings belong (never the official voice bundle).
+1. On DSH 0.2.2-rc.3, enable **Voice input** and install the [oh-my-harness capability bundle](../dsh-capabilities/README.md). Configure a usable `speech.transcribe` default in the capability bundle.
+2. Install/enable this add-on **after** the official bundle in the profile's bundle order. If upgrading a profile that listed this add-on first, disable and re-enable this add-on to append it after Voice input. The order applies a limit to the official controller; it does not mount a second controller.
+3. In **Plugins → Voice input**, choose **SenseVoiceSmall (INT8)** for local recognition or **oh-my-harness** for cloud recognition. If the local language was pinned, set it to **Auto** before switching to cloud. The add-on does not override the official default or your saved choice. Choose the local recognizer before disabling the cloud add-on.
 
-## Requirements and limits
+Only the selected cloud recognizer sends audio to its configured provider. There is no cross-provider fallback. The official UI inserts the transcript in the draft; it does not send a message. A cloud readiness card alone does not prove that credentials or the upstream transcription service work.
 
-- Requires the separately installed `oh-my-harness` capability bundle (declared as an optional package-manager peer to avoid fetching an unpublished package, but required at runtime to provide `omhCapabilities`) and a configured `speech.transcribe` default with resolved credentials. Install the local capability bundle first; this add-on does not fetch or configure it. Both Host speech package peers are optional for the package manager too: use the DSH installation's existing packages, not a second runtime copy. The `speechToText` and `omhCapabilities` injections remain mandatory at runtime.
-- The add-on owns the speech registry/controller in its Host composition. Do not activate a second speech registry/controller or the official voice bundle alongside it. An already mounted browser speech Remote is reused rather than mounted twice.
-- The composer follows Host readiness across reconnects and accepts only the selected `oh-my-harness` speech adapter. Other recognizers and their model-preparation UI are outside this add-on; replacing the capability backend's operation default remains supported.
-- Cloud-only: no local model preparation. Only automatic language detection is advertised; selecting another language is rejected rather than ignored.
-- `inferenceSeconds` is measured end-to-end and includes transport; it is not GPU-only timing.
-- Microphone permission, recording quality and rendered appearance are runtime acceptance checks; local tests cover the adapter, resampling, cancellation and artifact registration only.
-
-## Upstream attribution
-
-The recorder/WAV encoding and microphone-to-draft flow are adapted from the MIT-licensed `@deepseek-ai/dsh-experimental-client-ui-voice-input` 0.2.2-rc.3 sources (`audio.ts`, `VoiceInput.tsx`, `mount.ts`) in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). This package retains the DeepSeek copyright and MIT permission notice in [LICENSE](LICENSE). Provider routing, format adaptation and this package's composition/settings ownership are specific to oh-my-harness.
+The shared controller caps microphone recordings (both modes) at 40 seconds while this add-on is enabled. The adapter converts canonical 16 kHz mono PCM16 to 24 kHz to stay within the capability core's 2 MiB audio limit. `inferenceSeconds` includes transport. This repository tests provider registration, input conversion, routing and cancellation; physical microphone and provider acceptance are installation-specific. The [MIT notice](LICENSE) retains attribution for the upstream voice integration.

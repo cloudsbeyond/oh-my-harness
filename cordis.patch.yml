@@ -8,7 +8,7 @@
 # Disable this entry in a profile patch to opt out.
 - insert:
     - id: oh-my-harness-prefer-ipv6
-      name: ./extensions/dsh-capabilities/prefer-ipv6.mjs
+      name: oh-my-harness/prefer-ipv6
       config: {}
 # No-op relative Host entry anchoring the root manifest so the client module
 # loader discovers the root dsh.client declaration (subpath entries are not

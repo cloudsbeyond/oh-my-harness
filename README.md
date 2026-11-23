@@ -56,7 +56,7 @@ The project grows by closing concrete harness integration gaps, rather than by a
 
 ## Existing DSH installation: native capabilities
 
-For **DSH 0.2.2-rc.3**, run `npm ci`, install this local repository root through Plugin Manager, then configure [Host credential references and operation defaults](extensions/dsh-capabilities/README.md). This bundle can call compatible provider APIs directly; it does not require an MCP server or CLIProxyAPI.
+For **DSH ^0.2.2-rc.3**, run `npm ci`, install this local repository root through Plugin Manager, then configure [Host credential references and operation defaults](extensions/dsh-capabilities/README.md). This bundle can call compatible provider APIs directly; it does not require an MCP server or CLIProxyAPI.
 
 The bundle joins the host's search and attachment paths and includes document-tab WAV preview. [The optional cloud speech provider](extensions/dsh-voice-input/README.md) adds a recognizer to official Voice input alongside local SenseVoice. For search citations, images and replay inside a GPT main-model conversation, install the separate [Codex model-native adapter](extensions/dsh-native-codex/README.md); adding independent capabilities does not migrate that model route.
 

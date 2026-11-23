@@ -1,13 +1,13 @@
 {
   "name": "oh-my-harness",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Harness integrations for reusable capabilities, model-native semantics, and versioned Skills",
   "type": "module",
   "license": "MIT",
   "engines": {
     "node": ">=24",
-    "dsh": "0.2.2-rc.3"
+    "dsh": "^0.2.2-rc.3"
   },
   "exports": {
     ".": "./src/capabilities/runtime.mjs",
@@ -45,8 +45,8 @@
     "extensions/skill-source-management/tests/*.py", "extensions/skill-source-management/README*.md"
   ],
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-llm": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.3",
+    "@deepseek-ai/dsh-llm": "^0.2.2-rc.3",
     "@deepseek-ai/schemastery": "~3.19.0"
   },
   "peerDependenciesMeta": {

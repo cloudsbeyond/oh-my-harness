@@ -2,7 +2,9 @@
 
 The root oh-my-harness package is also an optional DSH bundle. Its `oh-my-harness/dsh` Host plugin calls the independent capability core directly; native tools do not start an MCP client or translate through MCP envelopes.
 
-This initial bundle targets the tested DSH **0.2.2-rc.3** interface. Install the local repository root through Plugin Manager, not this subdirectory. Host imports are optional peers: standalone core/MCP use does not require DSH packages, while a linked plugin gets them through DSH's host resolver. No global resolver hook or personal dependency symlink is needed.
+This bundle supports DSH **^0.2.2-rc.3** (tested through 0.2.2-rc.5). Install the local repository root through Plugin Manager, not this subdirectory. Host imports are optional peers: standalone core/MCP use does not require DSH packages, while a linked plugin gets them through DSH's host resolver. No global resolver hook or personal dependency symlink is needed.
+
+The bundle also mounts `prefer-ipv6.mjs`, which sets the host process DNS result order to `ipv6first` so dual-stack capability endpoints are contacted over IPv6 first. Node's Happy Eyeballs still falls back to IPv4 within the attempt timeout when IPv6 is unreachable; IPv4-only hosts are unaffected. Disable the `oh-my-harness-prefer-ipv6` insert in the profile patch to opt out.
 
 ## Configure before use
 

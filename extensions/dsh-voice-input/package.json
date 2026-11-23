@@ -1,11 +1,11 @@
 {
   "name": "oh-my-harness-voice-input",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Cloud transcription provider for the official DeepSeek Harness Voice input bundle.",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=24", "dsh": "0.2.2-rc.3" },
+  "engines": { "node": ">=24", "dsh": "^0.2.2-rc.3" },
   "exports": {
     ".": "./index.mjs",
     "./locale/*.json": "./locale/*.json",
@@ -17,8 +17,8 @@
   },
   "peerDependencies": {
     "oh-my-harness": "^0.2.0",
-    "@deepseek-ai/dsh-experimental-speech-to-text": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-experimental-api-speech-to-text": "0.2.2-rc.3"
+    "@deepseek-ai/dsh-experimental-speech-to-text": "^0.2.2-rc.3",
+    "@deepseek-ai/dsh-experimental-api-speech-to-text": "^0.2.2-rc.3"
   },
   "peerDependenciesMeta": {
     "oh-my-harness": { "optional": true },

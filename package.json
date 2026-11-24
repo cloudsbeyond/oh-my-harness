@@ -16,7 +16,6 @@
     "./capabilities/protocol": "./src/capabilities/protocol-provider.mjs",
     "./capabilities/realtime": "./src/capabilities/realtime.mjs",
     "./dsh": "./extensions/dsh-capabilities/index.mjs",
-    "./prefer-ipv6": "./extensions/dsh-capabilities/prefer-ipv6.mjs",
     "./client": "./extensions/dsh-capabilities/client.js",
     "./locale/*.json": "./extensions/dsh-capabilities/locale/*.json",
     "./icon": "./extensions/dsh-capabilities/icon.svg",
